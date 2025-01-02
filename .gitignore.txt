@@ -4,3 +4,4 @@
 # Keine Konfig-/Zugangsdaten
 config.php
 .env
+git_push.cmd
