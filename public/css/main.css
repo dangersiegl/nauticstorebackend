@@ -1,0 +1,247 @@
+/* main.css - Admin Backend mit Seiten-Navigation & Sub-Menüs */
+
+/* Reset / Grundlegendes */
+* {
+    box-sizing: border-box;
+}
+html, body {
+    margin: 0;
+    padding: 0;
+    font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+    background-color: #f4f4f4;
+    color: #333;
+}
+
+/* Wrapper um Sidebar + Hauptinhalt */
+.admin-wrapper {
+    display: flex;          /* Desktop: Sidebar links, Inhalt rechts */
+    min-height: 100vh;      /* Füllt gesamten Viewport aus */
+}
+
+/* Sidebar */
+.admin-sidebar {
+    width: 240px;
+    background-color: #2c3e50;
+    color: #ecf0f1;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+}
+.sidebar-header {
+    padding: 20px;
+    background: #1f2d3b;
+}
+.sidebar-header h2 {
+    margin: 0;
+    font-size: 1.2rem;
+}
+.sidebar-nav {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    flex: 1; /* Platz für Navigation */
+    display: flex;
+    flex-direction: column;
+}
+.sidebar-nav li {
+    position: relative; /* Damit Submenü absolute/relative positionieren kann */
+    border-bottom: 1px solid #34495e;
+}
+.sidebar-nav a {
+    display: block;
+    padding: 12px 20px;
+    color: #ecf0f1;
+    text-decoration: none;
+    transition: background 0.3s;
+}
+.sidebar-nav a:hover {
+    background-color: #34495e;
+    color: #fff;
+}
+
+/* Sub-Menüs */
+.has-submenu ul.sub-nav {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: none; /* Start: verborgen */
+    background-color: #2c3e50; /* Gleiche Farbe wie Sidebar */
+}
+.has-submenu ul.sub-nav li {
+    border-bottom: none; /* kein extra Separator */
+}
+.has-submenu ul.sub-nav a {
+    padding-left: 40px; /* Einrückung, um die Hierarchie zu zeigen */
+}
+/* Wenn li.has-submenu 'open' Klasse hat => Sub-Menü anzeigen */
+.has-submenu.open .sub-nav {
+    display: block;
+}
+/* Pfeil-Icon neben dem Hauptmenüpunkt */
+.submenu-toggle {
+    font-size: 0.8rem;
+    margin-left: 5px;
+    transition: transform 0.3s ease; /* Animiertes Drehen */
+    display: inline-block; /* Damit transform funktioniert */
+}
+
+/* Pfeil dreht sich, wenn Menü offen ist */
+.has-submenu.open .submenu-toggle {
+    transform: rotate(180deg); /* Nach oben drehen */
+}
+
+/* Hauptinhalt */
+.admin-main {
+    flex: 1;               
+    background: #fff;
+    padding: 20px;
+    min-height: 100vh;
+    box-shadow: inset 0 0 10px rgba(0,0,0,0.05);
+    /* Platz für einen fixen Footer falls du willst */
+    padding-bottom: 60px; 
+}
+
+/* Footer */
+.admin-footer {
+    background: #1f2d3b;
+    color: #bdc3c7;
+    text-align: center;
+    padding: 2px;
+    font-size: 0.6rem;
+    /* Du kannst 'position: fixed;' nutzen, wenn du ihn immer sichtbar haben willst: */
+       position: fixed; 
+       bottom: 0; 
+       left: 0;
+       width: 100%; 
+       z-index: 999; 
+}
+
+/* --- Responsive Breakpoints --- */
+
+/* Ab 768px abwärts => Sidebar oben, Inhalt unten (oder ähnliches) */
+@media (max-width: 768px) {
+    .admin-wrapper {
+        flex-direction: column; 
+        /* Sidebar kommt oben, main darunter */
+    }
+    .admin-sidebar {
+        width: 100%;
+    }
+    .sidebar-nav {
+        flex-direction: column;
+    }
+    .sidebar-nav li {
+        border-bottom: 1px solid #34495e;
+    }
+    .admin-main {
+        width: 100%;
+        min-height: auto;
+        padding: 20px;
+        padding-bottom: 60px; 
+    }
+    .admin-footer {
+        /* Falls du fix bleibst, kann es stören auf kleinen Screens,
+           also evtl. position: static; */
+        position: static; 
+        margin-top: auto;
+    }
+}
+
+/* Optional: Weiter runter (max-width: 480px) => Schriftgrößen anpassen */
+@media (max-width: 480px) {
+    .sidebar-nav a {
+        padding: 10px;
+        font-size: 0.9rem;
+    }
+    .admin-main {
+        padding: 10px;
+        padding-bottom: 60px;
+    }
+    .admin-footer {
+        font-size: 0.75rem;
+    }
+}
+
+/* Login-Seite Styling */
+.login-container {
+    max-width: 400px;
+    margin: 50px auto;
+    padding: 20px;
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    text-align: center;
+}
+
+.login-container h2 {
+    margin-bottom: 20px;
+    font-size: 1.5rem;
+    color: #333;
+}
+
+.error-message {
+    color: #e74c3c;
+    background: #f8d7da;
+    border: 1px solid #f5c6cb;
+    padding: 10px;
+    border-radius: 4px;
+    margin-bottom: 15px;
+}
+
+.login-form .form-group {
+    margin-bottom: 15px;
+    text-align: left;
+}
+
+.login-form label {
+    display: block;
+    font-size: 0.9rem;
+    margin-bottom: 5px;
+    color: #555;
+}
+
+.login-form input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 1rem;
+    transition: border-color 0.3s;
+}
+
+.login-form input:focus {
+    border-color: #3498db;
+    outline: none;
+    box-shadow: 0 0 4px rgba(52, 152, 219, 0.5);
+}
+
+.btn-primary {
+    background-color: #3498db;
+    color: #fff;
+    padding: 10px 20px;
+    font-size: 1rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.btn-primary:hover {
+    background-color: #2980b9;
+}
+
+.register-link {
+    margin-top: 20px;
+    font-size: 0.9rem;
+}
+
+.register-link a {
+    color: #3498db;
+    text-decoration: none;
+    font-weight: bold;
+}
+
+.register-link a:hover {
+    text-decoration: underline;
+}
+

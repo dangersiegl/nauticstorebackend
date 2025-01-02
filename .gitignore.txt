@@ -1,0 +1,6 @@
+# Keine Logfiles
+*.log
+
+# Keine Konfig-/Zugangsdaten
+config.php
+.env
