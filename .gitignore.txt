@@ -2,7 +2,7 @@
 *.log
 
 # Keine Konfig-/Zugangsdaten
-config.php
+config/config.php
 .env
 
 git_push.cmd
