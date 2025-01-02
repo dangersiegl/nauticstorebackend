@@ -1,21 +1,24 @@
 @echo off
 REM Automatisches Git-Update-Skript
-REM Dieses Skript berücksichtigt Änderungen, ohne Dateien einzuschließen, die durch .gitignore ausgeschlossen sind.
+REM Berücksichtigt .gitignore, entfernt bereits hochgeladene ignorierte Dateien und übernimmt Änderungen.
 
 REM Wechsel in das Verzeichnis des Repositories (falls erforderlich)
 cd /d %~dp0
 
-REM Bereinigt den Cache, um sicherzustellen, dass .gitignore-Regeln korrekt angewendet werden
-git rm -r --cached .
+REM Entfernt Dateien, die nachträglich in .gitignore hinzugefügt wurden, aus dem Repository
+for /f "delims=" %%f in ('git ls-files -i --exclude-standard') do (
+    git rm --cached "%%f"
+)
 
-REM Füge alle Dateien hinzu, die nicht durch .gitignore ausgeschlossen sind
+REM Füge alle Änderungen hinzu, die nicht durch .gitignore ausgeschlossen sind
 git add .
 
-REM Commit mit einer generischen Nachricht (kann angepasst werden)
-git commit -m "Automatische Übernahme aller Änderungen (respektiert .gitignore)"
+REM Commit mit einer generischen Nachricht
+git commit -m "Automatische Übernahme aller Änderungen (inkl. Bereinigung nach .gitignore)"
 
 REM Push zum Remote-Repository
 git push origin main
 
 REM Erfolgsmeldung
-echo Änderungen erfolgreich gepusht!
+echo Änderungen erfolgreich gepusht und ignorierte Dateien entfernt!
+pause
