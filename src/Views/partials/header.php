@@ -13,10 +13,38 @@ $isAdmin    = !empty($_SESSION['is_admin']);
 $currentRoute = $_GET['route'] ?? '';
 $currentRoute = trim($currentRoute, '/'); 
 
+// Falls nicht über ?route geliefert, aus REQUEST_URI rekonstruieren
+if ($currentRoute === '') {
+    $path = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
+    $path = preg_replace('#^/+#', '', $path);
+    // optional index.php entfernen
+    $path = preg_replace('#^index\.php/?#i', '', $path);
+    $currentRoute = trim($path, '/');
+}
+
 // Zerlege die Route.
-$parts = explode('/', $currentRoute);
+$parts = array_values(array_filter(explode('/', $currentRoute)));
 $activeController = $parts[0] ?? ''; // z. B. "user"
 $activeAction     = $parts[1] ?? 'index'; // default = "index"
+
+// --- Neu: differenziertes Aufklapp-Logic für das "user"-Menü ---
+// Standard: keine Aufklappung
+$openCustomers = false;
+$openUserAccount = false;
+
+if ($activeController === 'user') {
+    // Admin-Listen-/Kunden-Bereiche (list, neu, store, view, delete, edit with numeric id)
+    if (preg_match('#^user/(list|neu|store|view|delete)$#', $currentRoute) || (isset($parts[2]) && is_numeric($parts[2]))) {
+        $openCustomers = true;
+    }
+    // Eigenes Profil / Account-Einstellungen / MFA / Passwort
+    if (preg_match('#^user/(edit|mfa|changePassword|password)#', $currentRoute) || in_array($activeAction, ['edit','mfa','enableMFA','password','changePassword'])) {
+        // Falls URL wie user/edit/{id} (Admin-Edit) gilt das als Kunden-Context, nicht als Eigenes-Profil
+        if (!(isset($parts[2]) && is_numeric($parts[2]))) {
+            $openUserAccount = true;
+        }
+    }
+}
 
 // Ermittle aus der Session, ob Sidebar eingeklappt ist
 $sidebarCollapsed = !empty($_SESSION['sidebar_collapsed']);
@@ -231,7 +259,7 @@ $sidebarCollapsed = !empty($_SESSION['sidebar_collapsed']);
                      </li>
  
                      <?php if ($isAdmin): ?>
-                         <li class="has-submenu <?php echo ($activeController === 'user' ? 'open' : ''); ?>">
+                         <li class="has-submenu <?php echo ($openCustomers ? 'open' : ''); ?>">
                         <a href="/user/list" title="Kunden" aria-label="Kunden">
                             <i class="fa-solid fa-users nav-icon" aria-hidden="true"></i>
                             <span class="nav-label">Kunden</span>
@@ -255,7 +283,7 @@ $sidebarCollapsed = !empty($_SESSION['sidebar_collapsed']);
                     <?php endif; ?>
 
                     <!-- Benutzerverwaltung = eigener Account (für alle Benutzer verfügbar) -->
-                    <li class="has-submenu <?php echo ($activeController === 'user' && ($activeAction === 'edit' || $activeAction === 'changePassword' || $activeAction === 'enableMFA') ? 'open' : ''); ?>">
+                    <li class="has-submenu <?php echo ($openUserAccount ? 'open' : ''); ?>">
                         <a href="/user/edit" title="Benutzerverwaltung" aria-label="Benutzerverwaltung">
                             <i class="fa-solid fa-user-gear nav-icon" aria-hidden="true"></i>
                             <span class="nav-label">Benutzerverwaltung</span>

@@ -3,11 +3,28 @@
 <?php
 $pageTitle = 'Meine Daten bearbeiten';
 require __DIR__ . '/../partials/header.php';
+
+// --- Neu: Session-Meldungen (für Redirects) übernehmen und löschen ---
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+if (!empty($_SESSION['success_message'])) {
+    $success = $_SESSION['success_message'];
+    unset($_SESSION['success_message']);
+}
+if (!empty($_SESSION['error_message'])) {
+    $error = $_SESSION['error_message'];
+    unset($_SESSION['error_message']);
+}
 ?>
 
 <div class="admin-main">
     <div class="content-box">
-        <h2>Meine Daten bearbeiten</h2>
+        <?php if (!empty($section) && $section === 'password'): ?>
+            <h2>Mein Passwort ändern</h2>
+        <?php else: ?>
+            <h2>Meine Daten bearbeiten</h2>
+        <?php endif; ?>
 
         <?php if (!empty($error)): ?>
             <div class="error-message"><?php echo htmlspecialchars($error); ?></div>
@@ -15,6 +32,33 @@ require __DIR__ . '/../partials/header.php';
         <?php if (!empty($success)): ?>
             <div class="success-message"><?php echo htmlspecialchars($success); ?></div>
         <?php endif; ?>
+
+        <?php
+        // Nur anzeigen, wenn wir NICHT auf der Passwort-Seite sind
+        $section = $section ?? ($_GET['section'] ?? '');
+        if ($section !== 'password') {
+            // Controller kann $pendingEmail/$pendingExpires/$resendUrl setzen.
+            $pendingEmail = $pendingEmail ?? null;
+            $pendingExpires = $pendingExpires ?? null;
+            $resendUrl = $resendUrl ?? '/user/resend-confirm-email';
+
+            if (!empty($pendingEmail)): ?>
+                <div class="alert alert-info" style="margin:10px 0;padding:12px;border:1px solid #bcd;font-size:0.95rem;background:#f7fbff;">
+                    <p style="margin:0 0 8px;">
+                        <strong>Bestätigung ausstehend:</strong><br>
+                        Eine Bestätigungsmail zur Änderung Ihrer E‑Mail‑Adresse wurde an <strong><?= htmlspecialchars($pendingEmail) ?></strong> gesendet.
+                    </p>
+                    <?php if ($pendingExpires !== null): ?>
+                        <p style="margin:0 0 8px;">Der Bestätigungslink läuft in ca. <strong><?= ceil($pendingExpires/3600) ?> Stunden</strong> ab.</p>
+                    <?php endif; ?>
+                    <p style="margin:0;">
+                        Falls Sie die Mail nicht erhalten haben, können Sie sie erneut anfordern:
+                        <a class="btn btn-secondary" href="<?= htmlspecialchars($resendUrl . '?uid=' . urlencode($user['id'] ?? '')) ?>" style="margin-left:8px;padding:6px 10px;text-decoration:none;">Erneut senden</a>
+                    </p>
+                </div>
+            <?php endif;
+        }
+        ?>
 
         <?php if (!empty($user)): ?>
 

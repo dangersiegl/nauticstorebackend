@@ -605,15 +605,62 @@ class UserController
              return;
          }
 
-         // Setze $section für die View (falls noch nicht vorhanden)
-         // View kann $section nutzen, alternativ bleibt '' (Profil-Form)
-         // Falls $_GET['section'] noch gesetzt ist, respektiere es nur wenn $section leer
-         if (empty($section)) {
-             $section = $_GET['section'] ?? '';
-         }
+         // --- Neues: Prüfe auf ausstehende E-Mail-Änderung (email_resets) und bereite View-Variablen vor ---
+         $pendingEmail = null;
+         $pendingExpires = null; // Sekunden bis Ablauf
+         $pendingToken = null;
+         $pendingRowId = null;
+         $resendUrl = '/user/resend-confirm-email'; // View kann diesen Link verwenden
 
-         // POST-Verarbeitung
-         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+         // PDO identisch wie an anderen Stellen ermitteln
+         $pdo = null;
+         if (class_exists('\App\Models\Database')) {
+             $cls = '\App\Models\Database';
+             if (method_exists($cls, 'getConnection')) {
+                 try { $pdo = $cls::getConnection(); } catch (\Throwable $e) { $pdo = null; }
+             }
+             if ($pdo === null && method_exists($cls,'getInstance')) {
+                 try { $inst = $cls::getInstance(); if (is_object($inst) && method_exists($inst,'getConnection')) $pdo = $inst->getConnection(); } catch (\Throwable $e) { $pdo = null; }
+             }
+         }
+         if ($pdo === null && class_exists('Database')) {
+             $cls = 'Database';
+             if (method_exists($cls, 'getConnection')) {
+                 try { $pdo = $cls::getConnection(); } catch (\Throwable $e) { $pdo = null; }
+             }
+             if ($pdo === null && method_exists($cls,'getInstance')) {
+                 try { $inst = $cls::getInstance(); if (is_object($inst) && method_exists($inst,'getConnection')) $pdo = $inst->getConnection(); } catch (\Throwable $e) { $pdo = null; }
+             }
+         }
+         if ($pdo === null && isset($GLOBALS['pdo']) && $GLOBALS['pdo'] instanceof \PDO) $pdo = $GLOBALS['pdo'];
+         if ($pdo === null && !empty($GLOBALS['db']) && $GLOBALS['db'] instanceof \PDO) $pdo = $GLOBALS['db'];
+         if ($pdo === null && !empty($GLOBALS['database']) && $GLOBALS['database'] instanceof \PDO) $pdo = $GLOBALS['database'];
+
+         if ($pdo instanceof \PDO) {
+             try {
+                 $sql = "SELECT id, new_email, token, created_at FROM email_resets WHERE user_id = :id ORDER BY created_at DESC LIMIT 1";
+                 $stmt = $pdo->prepare($sql);
+                 $stmt->execute([':id' => $userId]);
+                 $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+                 if (!empty($row['new_email'])) {
+                     $pendingEmail = $row['new_email'];
+                     $pendingToken = $row['token'];
+                     $pendingRowId = $row['id'];
+                     $createdTs = strtotime($row['created_at']);
+                     $expiresAt = ($createdTs !== false) ? ($createdTs + 48*3600) : null; // 48h wie früher
+                     $pendingExpires = ($expiresAt !== null) ? max(0, $expiresAt - time()) : null;
+                 }
+             } catch (\Throwable $e) {
+                 // ignore - View zeigt nichts in diesem Fall
+             }
+         }
+ 
+        if (empty($section)) {
+            $section = $_GET['section'] ?? '';
+        }
+
+        // POST-Verarbeitung
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
              // 1) Passwort-Änderung (wenn password-formular gesendet wurde)
              if (isset($_POST['new_password'])) {
@@ -860,11 +907,18 @@ class UserController
                     }
 
                     $success = "Eine Bestätigungsmail wurde an " . htmlspecialchars($email) . " gesendet. Die neue E‑Mail wird nach Bestätigung übernommen.";
-                } else {
-                    $error = "Fehler beim Anlegen der Änderungsbestätigung. Bitte versuchen Sie es später.";
-                    require __DIR__ . '/../Views/user/edit.php';
-                    return;
-                }
+                    // Markiere, dass eine E-Mail-Änderung pending ist damit wir die generische "Daten gespeichert." Meldung nicht überschreiben
+                    $emailChangePending = true;
+                    // Sofort View-Variablen setzen, damit die Seite die NEUE pending E-Mail sofort anzeigt (kein manueller Reload erforderlich)
+                    $pendingEmail = $email;
+                    $pendingToken = $token;
+                    // Restlaufzeit in Sekunden (approx. 48 Stunden)
+                    $pendingExpires = 48 * 3600;
+                 } else {
+                     $error = "Fehler beim Anlegen der Änderungsbestätigung. Bitte versuchen Sie es später.";
+                     require __DIR__ . '/../Views/user/edit.php';
+                     return;
+                 }
             } else {
                 // E-Mail nicht geändert -> normale Speicherung per Model (wenn vorhanden)
                 try {
@@ -935,12 +989,15 @@ class UserController
                 header('Location: /user/list');
                 exit;
             } else {
-                $success = "Daten gespeichert.";
-                // neu laden, damit aktuelle Werte angezeigt werden
-                $user = UserModel::getById($userId);
-                require __DIR__ . '/../Views/user/edit.php';
-                return;
-            }
+                // Wenn eine E-Mail-Änderung aussteht, lasse die bereits gesetzte $success-Meldung stehen.
+                if (empty($emailChangePending)) {
+                    $success = "Daten gespeichert.";
+                }
+                 // neu laden, damit aktuelle Werte angezeigt werden
+                 $user = UserModel::getById($userId);
+                 require __DIR__ . '/../Views/user/edit.php';
+                 return;
+             }
          }
 
         // GET => Formular anzeigen mit bestehenden Daten
@@ -1330,62 +1387,136 @@ class UserController
         exit;
     }
 
-    // Neue Aliase / Wrapper, damit verschiedene Router-Konventionen funktionieren:
-    // z.B. "confirm-email", "confirm_email" oder "confirmEmailAction"
-    public function confirm_email()
+    // Resend confirmation mail for pending email change
+    public function resendConfirmEmail()
     {
-        return $this->confirmEmail();
-    }
+        if (session_status() === PHP_SESSION_NONE) session_start();
 
-    public function confirmEmailAction()
-    {
-        return $this->confirmEmail();
-    }
+        $currentUserId = $_SESSION['user_id'] ?? null;
+        $isAdmin = !empty($_SESSION['is_admin']);
 
-    public function confirm_emailAction()
-    {
-        return $this->confirmEmail();
-    }
-
-    // Magisches Fangen unbekannter Aktionsaufrufe vom Router (z.B. "confirm-email")
-    public function __call($name, $arguments)
-    {
-        // 1) Direkte Normalisierungen: kebab/space -> underscore, underscore -> camelCase
-        $normalizedUnderscore = str_replace(['-', ' '], '_', $name);
-        $camel = lcfirst(str_replace(' ', '', ucwords(str_replace(['-', '_'], ' ', $name))));
-        $camelAction = $camel . 'Action';
-        $underscoreLower = strtolower($normalizedUnderscore);
-
-        $candidates = [
-            $name,
-            $normalizedUnderscore,
-            $underscoreLower,
-            $camel,
-            $camelAction,
-            // auch ohne Trennzeichen (confirmemail)
-            str_replace(['-', '_'], '', $name),
-            str_replace(['-', '_'], '', $underscoreLower)
-        ];
-
-        foreach ($candidates as $cand) {
-            if (method_exists($this, $cand)) {
-                return call_user_func_array([$this, $cand], $arguments);
-            }
+        // UID kann als GET oder POST kommen; Standard auf aktuellen User
+        $uid = isset($_REQUEST['uid']) ? (int)$_REQUEST['uid'] : $currentUserId;
+        if (empty($uid)) {
+            $_SESSION['error_message'] = 'Ungültige Anfrage.';
+            header('Location: /user/edit');
+            exit;
+        }
+        if ($uid !== $currentUserId && !$isAdmin) {
+            $_SESSION['error_message'] = 'Keine Berechtigung.';
+            header('Location: /user/edit');
+            exit;
         }
 
-        // 2) Heuristiken für bekannte Fälle (z.B. confirm + email)
-        $lower = strtolower($name);
-        if (strpos($lower, 'confirm') !== false && strpos($lower, 'email') !== false) {
-            if (method_exists($this, 'confirmEmail')) {
-                return call_user_func_array([$this, 'confirmEmail'], $arguments);
+        // PDO ermitteln (wie in anderen Methoden)
+        $pdo = null;
+        if (class_exists('\App\Models\Database')) {
+            $cls = '\App\Models\Database';
+            if (method_exists($cls, 'getConnection')) {
+                try { $pdo = $cls::getConnection(); } catch (\Throwable $e) { $pdo = null; }
+            }
+            if ($pdo === null && method_exists($cls, 'getInstance')) {
+                try { $inst = $cls::getInstance(); if (is_object($inst) && method_exists($inst,'getConnection')) $pdo = $inst->getConnection(); } catch (\Throwable $e) { $pdo = null; }
             }
         }
+        if ($pdo === null && class_exists('Database')) {
+            $cls = 'Database';
+            if (method_exists($cls, 'getConnection')) {
+                try { $pdo = $cls::getConnection(); } catch (\Throwable $e) { $pdo = null; }
+            }
+            if ($pdo === null && method_exists($cls, 'getInstance')) {
+                try { $inst = $cls::getInstance(); if (is_object($inst) && method_exists($inst,'getConnection')) $pdo = $inst->getConnection(); } catch (\Throwable $e) { $pdo = null; }
+            }
+        }
+        if ($pdo === null && isset($GLOBALS['pdo']) && $GLOBALS['pdo'] instanceof \PDO) $pdo = $GLOBALS['pdo'];
+        if ($pdo === null && !empty($GLOBALS['db']) && $GLOBALS['db'] instanceof \PDO) $pdo = $GLOBALS['db'];
+        if ($pdo === null && !empty($GLOBALS['database']) && $GLOBALS['database'] instanceof \PDO) $pdo = $GLOBALS['database'];
 
-        // 3) Fallback: aussagekräftigen Fehler loggen und leise zurückgeben (Router zeigt dann ggf. eigene Fehlermeldung)
-        error_log("Controller/UserController: Aktion '{$name}' existiert nicht.");
-        // Optional: kann eine Exception werfen oder Redirect auslösen:
-        // throw new \BadMethodCallException("Aktion '{$name}' im Controller 'UserController' existiert nicht.");
-        return null;
+        if (!($pdo instanceof \PDO)) {
+            $_SESSION['error_message'] = 'Keine DB-Verbindung vorhanden.';
+            header('Location: /user/edit');
+            exit;
+        }
+
+        try {
+            $sql = "SELECT id, new_email, token FROM email_resets WHERE user_id = :uid ORDER BY created_at DESC LIMIT 1";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute([':uid' => $uid]);
+            $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+            if (empty($row['new_email'])) {
+                $_SESSION['error_message'] = 'Keine ausstehende E‑Mail‑Änderung gefunden.';
+                header('Location: /user/edit' . ($isAdmin && $uid !== $currentUserId ? '/' . $uid : ''));
+                exit;
+            }
+
+            // Optional: neuen Token generieren statt reuse (sicherer) — aktuell reuse
+            $email = $row['new_email'];
+            $token = $row['token'];
+
+            // Reset created_at, damit Ablauf neu startet
+            $upd = $pdo->prepare("UPDATE email_resets SET created_at = :ca WHERE id = :id");
+            $upd->execute([':ca' => date('Y-m-d H:i:s'), ':id' => $row['id']]);
+
+            // Sende Bestätigungsmail (PHPMailer/Fallback) - gleicht vorhandener Logik
+            $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+            $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+            $confirmUrl = $scheme . '://' . $host . '/user/confirm-email?uid=' . urlencode($uid) . '&token=' . urlencode($token);
+            $subject = 'E‑Mail Änderung bestätigen';
+            $message = "Hallo,\n\nbitte bestätigen Sie die Änderung Ihrer E‑Mailadresse, indem Sie auf den folgenden Link klicken:\n\n" . $confirmUrl . "\n\nWenn Sie diese Änderung nicht angefordert haben, ignorieren Sie bitte diese Nachricht.\n\nFreundliche Grüße\n";
+
+            $fromAddr = (defined('SMTP_FROM') && SMTP_FROM !== '') ? SMTP_FROM : ('noreply@' . $host);
+            $fromName = (defined('SMTP_FROM_NAME') && SMTP_FROM_NAME !== '') ? SMTP_FROM_NAME : 'NoReply';
+
+            if (class_exists('\PHPMailer\PHPMailer\PHPMailer')) {
+                try {
+                    $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
+                    if (defined('SMTP_HOST') && SMTP_HOST !== '') {
+                        $mail->isSMTP();
+                        $mail->Host = SMTP_HOST;
+                        $mail->Port = (defined('SMTP_PORT') && is_numeric(SMTP_PORT)) ? (int)SMTP_PORT : 25;
+                        $mail->SMTPAuth = defined('SMTP_AUTH') ? (bool)SMTP_AUTH : true;
+                        if (!empty(SMTP_USER)) $mail->Username = SMTP_USER;
+                        if (!empty(SMTP_PASS)) $mail->Password = SMTP_PASS;
+                        $sec = defined('SMTP_SECURE') ? strtolower(SMTP_SECURE) : '';
+                        if ($sec === 'ssl') $mail->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS;
+                        elseif ($sec === 'tls') $mail->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+                        $mail->SMTPDebug = defined('SMTP_DEBUG') ? (int)SMTP_DEBUG : 0;
+                        $mail->Debugoutput = function($str, $level) { error_log("PHPMailer debug[$level]: $str"); };
+                        if (defined('SMTP_ALLOW_SELF_SIGNED') && SMTP_ALLOW_SELF_SIGNED) {
+                            $mail->SMTPOptions = ['ssl' => ['verify_peer' => false, 'verify_peer_name' => false, 'allow_self_signed' => true]];
+                        }
+                    } else {
+                        $mail->isMail();
+                    }
+                    $mail->setFrom($fromAddr, $fromName);
+                    $mail->addAddress($email);
+                    $mail->Subject = $subject;
+                    $mail->Body = $message;
+                    $mail->AltBody = $message;
+                    $mail->send();
+                    $_SESSION['success_message'] = 'Bestätigungsmail wurde erneut versendet.';
+                } catch (\Throwable $e) {
+                    error_log("PHPMailer resend error: " . $e->getMessage());
+                    $headers = 'From: ' . $fromAddr . "\r\n" . 'Reply-To: ' . $fromAddr . "\r\n";
+                    @mail($email, $subject, $message, $headers);
+                    $_SESSION['success_message'] = 'Bestätigungsmail wurde erneut versendet.';
+                }
+            } else {
+                $headers = 'From: ' . $fromAddr . "\r\n" . 'Reply-To: ' . $fromAddr . "\r\n";
+                @mail($email, $subject, $message, $headers);
+                $_SESSION['success_message'] = 'Bestätigungsmail wurde erneut versendet.';
+            }
+
+        } catch (\Throwable $e) {
+            $_SESSION['error_message'] = 'Fehler beim Erneut-Versenden: ' . $e->getMessage();
+        }
+
+        // Redirect zurück zur Edit-Seite des betroffenen Users
+        if ($isAdmin && $uid !== $currentUserId) {
+            header('Location: /user/edit/' . $uid);
+        } else {
+            header('Location: /user/edit');
+        }
+        exit;
     }
-
 }

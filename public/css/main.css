@@ -10,7 +10,7 @@ html, body {
     margin: 0;
     padding: 0;
     font-family: "Segoe UI", Tahoma, Arial, sans-serif;
-    background-color: #f4f4f4;
+    background-color: #ffffff; /* überall weiß */
     color: #333;
     height: 100%;
 }
@@ -62,6 +62,7 @@ html, body {
     flex-direction: row;    /* Reihenrichtung für Desktop */
     min-height: 100vh;      /* Füllt gesamten Viewport aus */
     margin-top: 60px;       /* Platz für fixierten Header */
+    background-color: #ffffff; /* sicherstellen: Hintergrund ist weiß */
 }
 
 /* ============================================================
@@ -205,7 +206,7 @@ html, body {
 .admin-main {
     flex: 1;
     background: #fff;
-    padding: 10px;
+    padding: 0;
     min-height: calc(100vh - 60px); /* Höhe anpassen */
     box-shadow: inset 0 0 10px rgba(0,0,0,0);
     padding-bottom: 60px; /* Platz für ggf. fixen Footer */
@@ -220,12 +221,12 @@ html, body {
 /* Normaler Zustand (Sidebar ausgeklappt) */
 .admin-sidebar:not(.collapsed) + .admin-main,
 .admin-sidebar.open + .admin-main {
-    margin-left: 240px; /* Platz für volle Sidebar */
+    margin-left: 250px; /* vorher 240px -> +10px mehr Abstand */
 }
 
 /* Collapsed Zustand: Inhalt weiter nach links ziehen */
 .admin-sidebar.collapsed + .admin-main {
-    margin-left: 60px;  /* Platz für schmale Sidebar (nur Icons) */
+    margin-left: 70px;  /* vorher 60px -> +10px mehr Abstand */
 }
 
 /* Optional: wenn Sidebar auf mobilen Geräten overlayed ist, stelle margin-left zurück */
@@ -238,7 +239,7 @@ html, body {
 
 /* Kleinere Korrektur für content-box, damit es mit verkleinerter Sidebar gut aussieht */
 .admin-sidebar.collapsed + .admin-main .content-box {
-    margin-left: 8px; /* weniger negativer Versatz, wenn Platz knapper ist */
+    margin-left: 18px; /* beibehalten (leicht zusätzlicher Innenabstand) */
 }
 
 /* Einfaches Layout für Formulare */
@@ -783,8 +784,8 @@ html, body {
     padding: 18px;
     border-radius: 6px;
     box-shadow: 0 1px 4px rgba(0,0,0,0.04);
-    /* Weniger Abstand zur Sidebar: linke Marge reduziert (oder leicht negativ) */
-    margin: 16px 16px 24px -20px; /* top right bottom left */
+    /* Abstand zur Sidebar: kein negativer Versatz mehr */
+    margin: 16px 16px 24px 16px; /* top right bottom left */
     max-width: none; /* volle Breite innerhalb admin-main */
 }
 

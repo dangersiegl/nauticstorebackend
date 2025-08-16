@@ -131,6 +131,8 @@ $customRoutes = [
 
     'user/mfa/enable'  => ['controller' => 'user', 'action' => 'enableMFA'],
     'user/mfa/disable' => ['controller' => 'user', 'action' => 'disableMFA'],
+    // Route für erneutes Senden der Bestätigungs-Mail (nutzt uid GET-Param für Admins)
+    'user/resend-confirm-email' => ['controller' => 'user', 'action' => 'resendConfirmEmail'],
     // Oder falls du einen eigenen Controller MfaController hast:
     // 'mfa/enable' => ['controller' => 'mfa', 'action' => 'enable']
 
