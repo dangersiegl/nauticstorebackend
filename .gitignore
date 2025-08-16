@@ -1,0 +1,8 @@
+# Keine Logfiles
+*.log
+
+# Keine Konfig-/Zugangsdaten
+config/config.php
+.env
+
+git_push.cmd

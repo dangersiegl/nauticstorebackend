@@ -1,0 +1,600 @@
+/* main.css - Admin Backend mit Seiten-Navigation & Sub-Menüs */
+
+/* ============================================================
+   Reset / Grundlegendes
+   ============================================================ */
+   * {
+    box-sizing: border-box;
+}
+html, body {
+    margin: 0;
+    padding: 0;
+    font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+    background-color: #f4f4f4;
+    color: #333;
+    height: 100%;
+}
+
+/* ============================================================
+   Header Styling
+   ============================================================ */
+#main-header {
+    width: 100%;
+    background-color: #1f2d3b;
+    color: #ecf0f1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 20px;
+    height: 60px; /* Feste Höhe für den Header */
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1000;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.header-content {
+    display: flex;
+    align-items: center;
+    height: 100%;
+}
+
+.header-content .logo a {
+    color: #ecf0f1;
+    text-decoration: none;
+    font-size: 1.2rem;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    height: 100%;
+}
+
+.header-content .logo img {
+    height: 40px; /* Passe die Höhe nach Bedarf an */
+}
+
+/* ============================================================
+   Wrapper um Sidebar + Hauptinhalt
+   ============================================================ */
+.admin-wrapper {
+    display: flex;          /* Desktop: Sidebar links, Inhalt rechts */
+    flex-direction: row;    /* Reihenrichtung für Desktop */
+    min-height: 100vh;      /* Füllt gesamten Viewport aus */
+    margin-top: 60px;       /* Platz für fixierten Header */
+}
+
+/* ============================================================
+   SIDEBAR (Desktop)
+   ============================================================ */
+.admin-sidebar {
+    width: 240px;
+    background-color: #2c3e50;
+    color: #ecf0f1;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    transition: right 0.3s ease; /* Übergang für rechte Position */
+    position: fixed; /* Sidebar fixiert auf der linken Seite */
+    top: 60px; /* Platz für Header */
+    left: 0; /* Standardposition links */
+    height: calc(100% - 60px); /* Höhe anpassen */
+    overflow-y: auto; /* Scrollen, wenn Inhalt zu lang ist */
+}
+
+.sidebar-header {
+    padding: 20px;
+    background: #1f2d3b;
+}
+.sidebar-header h2 {
+    margin: 0;
+    font-size: 1.2rem;
+}
+
+.sidebar-nav {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    flex: 1; /* Platz für Navigation */
+    display: flex;
+    flex-direction: column;
+}
+
+.sidebar-nav li {
+    position: relative; /* Damit Submenü absolute/relative positionieren kann */
+    border-bottom: 1px solid #34495e;
+}
+
+.sidebar-nav a {
+    display: block;
+    padding: 12px 20px;
+    color: #ecf0f1;
+    text-decoration: none;
+    transition: background 0.3s;
+}
+
+.sidebar-nav a:hover {
+    background-color: #34495e;
+    color: #fff;
+}
+
+/* ============================================================
+   Sub-Menüs
+   ============================================================ */
+.has-submenu ul.sub-nav {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: none; /* Start: verborgen */
+    background-color: #2c3e50; /* Gleiche Farbe wie Sidebar */
+}
+
+.has-submenu ul.sub-nav li {
+    border-bottom: none; /* kein extra Separator */
+}
+
+.has-submenu ul.sub-nav a {
+    padding-left: 40px; /* Einrückung, um die Hierarchie zu zeigen */
+}
+
+.has-submenu.open .sub-nav {
+    display: block; /* Sub-Menü anzeigen, wenn .open */
+}
+
+/* Pfeil-Icon neben dem Haupt-Menüpunkt */
+.submenu-toggle {
+    font-size: 0.8rem;
+    margin-left: 5px;
+    transition: transform 0.3s ease; /* Animiertes Drehen */
+    display: inline-block; /* Damit transform funktioniert */
+}
+
+.has-submenu.open .submenu-toggle {
+    transform: rotate(180deg); /* Nach oben drehen */
+}
+
+/* ============================================================
+   Hauptinhalt
+   ============================================================ */
+.admin-main {
+    flex: 1;
+    background: #fff;
+    padding: 10px;
+    min-height: calc(100vh - 60px); /* Höhe anpassen */
+    box-shadow: inset 0 0 10px rgba(0,0,0,0);
+    padding-bottom: 60px; /* Platz für ggf. fixen Footer */
+    margin-left: 240px; /* Platz für Sidebar */
+    transition: margin-left 0.3s ease;
+}
+
+/* Einfaches Layout für Formulare */
+.form-container {
+    max-width: 400px;
+    margin: 20px auto;
+}
+
+.form-container label {
+    display: block;
+    margin-top: 10px;
+}
+
+.form-container input {
+    width: 100%;
+    padding: 8px;
+    box-sizing: border-box;
+}
+
+.form-container button {
+    margin-top: 15px;
+    padding: 10px;
+}
+
+/* ============================================================
+   Footer
+   ============================================================ */
+.admin-footer {
+    background: #1f2d3b;
+    color: #bdc3c7;
+    text-align: center;
+    padding: 2px;
+    font-size: 0.6rem;
+    position: fixed; 
+    bottom: 0; 
+    left: 0;
+    width: 100%; 
+    z-index: 999; 
+}
+
+/* ============================================================
+   Hamburger-Menü
+   ============================================================ */
+#hamburger-btn {
+    display: none; /* Standard: Verstecken (Desktop) */
+    width: 30px;
+    height: 25px;
+    cursor: pointer;
+    margin: 0; /* Entfernt zusätzlichen Abstand */
+    position: relative;
+    z-index: 1001; /* soll über dem Sidebar-Layer liegen */
+}
+
+#hamburger-btn span {
+    background: #2c3e50;
+    display: block;
+    height: 3px;
+    margin: 4px 0; /* Geringerer Abstand zwischen den Balken */
+    transition: 0.3s;
+}
+
+/* ============================================================
+   Responsive Breakpoints
+   ============================================================ */
+@media (max-width: 768px) {
+
+    #hamburger-btn {
+        display: flex; /* Nur sichtbar auf Mobile */
+        width: 30px;
+        height: 25px;
+        cursor: pointer;
+        position: fixed; /* Button fixiert, immer sichtbar */
+        top: 15px;
+        right: 15px; /* Rechts positioniert */
+        z-index: 1001; /* Über Sidebar und Inhalt */
+        flex-direction: column; /* Vertikale Anordnung der Balken */
+        justify-content: center; /* Zentrierung der Balken */
+    }
+
+    #hamburger-btn span {
+        background: #ecf0f1; /* Farbe angepasst für bessere Sichtbarkeit im Header */
+        display: block;
+        height: 3px;
+        margin: 4px 0; /* Geringerer Abstand zwischen den Balken */
+        transition: 0.3s;
+    }
+
+    #main-header {
+        justify-content: space-between;
+        padding: 0 15px;
+        height: 60px; /* Feste Höhe bleibt gleich */
+    }
+
+    .header-content .logo {
+        flex: 1;
+        text-align: center;
+    }
+
+    .header-content .logo a {
+        font-size: 1.1rem;
+    }
+
+    .header-content .logo img {
+        height: 35px; /* Kleinere Höhe für mobile */
+    }
+
+    .admin-sidebar {
+        position: fixed;
+        top: 60px; /* Platz für fixierten Header */
+        right: -240px; /* Sidebar kommt von rechts, ausgeblendet */
+        left: auto; /* Entfernt die linke Positionierung */
+        width: 240px;
+        height: calc(100% - 60px); /* Höhe anpassen */
+        transition: right 0.3s ease; /* Übergang für rechte Position */
+        z-index: 1000;
+    }
+
+    .admin-sidebar.open {
+        right: 0; /* Sidebar sichtbar */
+    }
+
+    .admin-main {
+        margin-left: 0; /* Kein Platz mehr für Sidebar */
+        margin-top: 60px; /* Platz für fixierten Header */
+        padding: 20px;
+    }
+
+    .admin-footer {
+        position: static;
+        margin-top: auto;
+    }
+}
+
+@media (max-width: 480px) {
+    body {
+        font-size: 16px;
+    }
+    .sidebar-nav a {
+        font-size: 1.1rem;
+        padding: 14px;
+    }
+    #hamburger-btn {
+        margin: 0;
+    }
+
+    .header-content .logo a {
+        font-size: 1rem;
+    }
+
+    .header-content .logo img {
+        height: 35px; /* Kleinere Höhe für sehr kleine Bildschirme */
+    }
+}
+
+/* ============================================================
+   Tabellen Styling
+   ============================================================ */
+.admin-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 20px;
+    font-size: 1rem;
+}
+
+.admin-table th,
+.admin-table td {
+    padding: 12px 15px;
+    border: 1px solid #ddd;
+    text-align: left;
+}
+
+.admin-table th {
+    background-color: #f2f2f2;
+}
+
+.admin-table tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+.admin-table tr:hover {
+    background-color: #f1f1f1;
+}
+
+.admin-table a {
+    color: #3498db;
+    text-decoration: none;
+}
+
+.admin-table a:hover {
+    text-decoration: underline;
+}
+
+/* Buttons für Aktionen */
+.btn-details {
+    background-color: #3498db;
+    color: #fff;
+    padding: 6px 12px;
+    text-decoration: none;
+    border-radius: 4px;
+    margin-right: 5px;
+    font-size: 0.9rem;
+    transition: background-color 0.3s;
+}
+
+.btn-details:hover {
+    background-color: #2980b9;
+}
+
+.btn-edit {
+    background-color: #f1c40f;
+    color: #fff;
+    padding: 6px 12px;
+    text-decoration: none;
+    border-radius: 4px;
+    margin-right: 5px;
+    font-size: 0.9rem;
+    transition: background-color 0.3s;
+}
+
+.btn-edit:hover {
+    background-color: #d4ac0d;
+}
+
+.btn-delete {
+    background-color: #e74c3c;
+    color: #fff;
+    padding: 6px 12px;
+    text-decoration: none;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    transition: background-color 0.3s;
+}
+
+.btn-delete:hover {
+    background-color: #c0392b;
+}
+
+/* Buttons für das Formular */
+.btn-primary {
+    background-color: #3498db;
+    color: #fff;
+    padding: 10px 20px;
+    font-size: 1rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.btn-primary:hover {
+    background-color: #2980b9;
+}
+
+.btn-secondary {
+    background-color: #95a5a6;
+    color: #fff;
+    padding: 6px 12px;
+    font-size: 0.9rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.btn-secondary:hover {
+    background-color: #7f8c8d;
+}
+
+/* Optional: Styling für admin-section */
+.admin-section {
+    padding: 20px;
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Styling für den Rich-Text-Editor Button */
+#toggle-html {
+    margin-top: 10px;
+}
+
+/* ============================================================
+   Login-Seite Styling
+   ============================================================ */
+.login-container {
+    max-width: 400px;
+    margin: 100px auto; /* Abstand vom Header */
+    padding: 20px;
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    text-align: center;
+}
+
+.login-container h2 {
+    margin-bottom: 20px;
+    font-size: 1.5rem;
+    color: #333;
+}
+
+.error-message {
+    color: #e74c3c;
+    background: #f8d7da;
+    border: 1px solid #f5c6cb;
+    padding: 10px;
+    border-radius: 4px;
+    margin-bottom: 15px;
+}
+
+.login-form .form-group {
+    margin-bottom: 15px;
+    text-align: left;
+}
+
+.login-form label {
+    display: block;
+    font-size: 0.9rem;
+    margin-bottom: 5px;
+    color: #555;
+}
+
+.login-form input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 1rem;
+    transition: border-color 0.3s;
+}
+
+.login-form input:focus {
+    border-color: #3498db;
+    outline: none;
+    box-shadow: 0 0 4px rgba(52, 152, 219, 0.5);
+}
+
+/* ============================================================
+   Buttons
+   ============================================================ */
+.btn-primary {
+    background-color: #3498db;
+    color: #fff;
+    padding: 10px 20px;
+    font-size: 1rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+.btn-primary:hover {
+    background-color: #2980b9;
+}
+
+/* ============================================================
+   Registrieren-Link
+   ============================================================ */
+.register-link {
+    margin-top: 20px;
+    font-size: 0.9rem;
+}
+.register-link a {
+    color: #3498db;
+    text-decoration: none;
+    font-weight: bold;
+}
+.register-link a:hover {
+    text-decoration: underline;
+}
+
+/* ============================================================
+   Navigation: aktive Einträge
+   ============================================================ */
+.sidebar-nav li.active > a,
+.sidebar-nav li > a.active {
+    background-color: #34495e;
+    color: #fff;
+}
+
+.sidebar-nav li.active {
+    background-color: #34495e;
+}
+
+.sidebar-nav li.active a {
+    color: #fff;
+}
+
+/* ============================================================
+   Zusätzliche Styles für Produktformular (oder generische Admin-Forms)
+   ============================================================ */
+.admin-form .form-group {
+    margin-bottom: 15px;
+    text-align: left;
+}
+
+.admin-form label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 600;
+    color: #555;
+}
+
+.admin-form input,
+.admin-form textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 1rem;
+    box-sizing: border-box;
+    transition: border-color 0.3s;
+}
+
+.admin-form input:focus,
+.admin-form textarea:focus {
+    border-color: #3498db;
+    outline: none;
+    box-shadow: 0 0 4px rgba(52, 152, 219, 0.3);
+}
+
+.admin-form button.btn {
+    background-color: #3498db;
+    color: #fff;
+    padding: 10px 20px;
+    font-size: 1rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.admin-form button.btn:hover {
+    background-color: #2980b9;
+}

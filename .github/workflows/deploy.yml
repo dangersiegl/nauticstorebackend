@@ -1,0 +1,33 @@
+name: Deploy to FTP
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch: {}
+
+jobs:
+  ftp-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: FTP Deploy (incremental)
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USER }}
+          password: ${{ secrets.FTP_PASS }}
+          protocol: ftp
+          server-dir: ${{ secrets.REMOTE_PATH }}
+          local-dir: ./        # <— falls dein Webroot z.B. /public ist. Sonst: ./
+          timeout: 120000
+          state-name: .ftp-deploy-sync-state.json
+          log-level: standard
+          exclude: |
+            **/.git*
+            **/.github/**
+            **/.vscode/**
+            **/.env
+            **/node_modules/**
+            **/src/**                 # falls nur Build/ public live gehen soll
+            **/composer.*             # je nach Setup

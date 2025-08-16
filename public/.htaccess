@@ -1,0 +1,13 @@
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # Ausnahme für das /assets/ Verzeichnis
+  RewriteRule ^assets/ - [L]
+
+  # Wenn die angeforderte Datei/Verzeichnis nicht existiert …
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+
+  # … leite alles an index.php weiter und übergebe den Teil hinter dem Slash als GET-Parameter "route"
+  RewriteRule ^(.*)$ index.php?route=$1 [QSA,L]
+</IfModule>
