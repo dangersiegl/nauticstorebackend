@@ -1330,4 +1330,21 @@ class UserController
         exit;
     }
 
+    // Neue Aliase / Wrapper, damit verschiedene Router-Konventionen funktionieren:
+    // z.B. "confirm-email", "confirm_email" oder "confirmEmailAction"
+    public function confirm_email()
+    {
+        return $this->confirmEmail();
+    }
+
+    public function confirmEmailAction()
+    {
+        return $this->confirmEmail();
+    }
+
+    public function confirm_emailAction()
+    {
+        return $this->confirmEmail();
+    }
+
 }
