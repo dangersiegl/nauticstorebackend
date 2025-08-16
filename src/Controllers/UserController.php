@@ -1347,4 +1347,45 @@ class UserController
         return $this->confirmEmail();
     }
 
+    // Magisches Fangen unbekannter Aktionsaufrufe vom Router (z.B. "confirm-email")
+    public function __call($name, $arguments)
+    {
+        // 1) Direkte Normalisierungen: kebab/space -> underscore, underscore -> camelCase
+        $normalizedUnderscore = str_replace(['-', ' '], '_', $name);
+        $camel = lcfirst(str_replace(' ', '', ucwords(str_replace(['-', '_'], ' ', $name))));
+        $camelAction = $camel . 'Action';
+        $underscoreLower = strtolower($normalizedUnderscore);
+
+        $candidates = [
+            $name,
+            $normalizedUnderscore,
+            $underscoreLower,
+            $camel,
+            $camelAction,
+            // auch ohne Trennzeichen (confirmemail)
+            str_replace(['-', '_'], '', $name),
+            str_replace(['-', '_'], '', $underscoreLower)
+        ];
+
+        foreach ($candidates as $cand) {
+            if (method_exists($this, $cand)) {
+                return call_user_func_array([$this, $cand], $arguments);
+            }
+        }
+
+        // 2) Heuristiken für bekannte Fälle (z.B. confirm + email)
+        $lower = strtolower($name);
+        if (strpos($lower, 'confirm') !== false && strpos($lower, 'email') !== false) {
+            if (method_exists($this, 'confirmEmail')) {
+                return call_user_func_array([$this, 'confirmEmail'], $arguments);
+            }
+        }
+
+        // 3) Fallback: aussagekräftigen Fehler loggen und leise zurückgeben (Router zeigt dann ggf. eigene Fehlermeldung)
+        error_log("Controller/UserController: Aktion '{$name}' existiert nicht.");
+        // Optional: kann eine Exception werfen oder Redirect auslösen:
+        // throw new \BadMethodCallException("Aktion '{$name}' im Controller 'UserController' existiert nicht.");
+        return null;
+    }
+
 }

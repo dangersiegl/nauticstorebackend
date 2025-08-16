@@ -197,24 +197,47 @@ if (!file_exists($controllerFile)) {
 
 
 // 8) Laden und Instanzieren
-
 require_once $controllerFile;
+$controller = new $controllerClass;
 
-$controller = new $controllerClass();
+// --- Neuer, korrigierter Dispatch-Block ---
+// Teile der Route als Parameter (falls vorhanden)
+$parts = $route === '' ? [] : explode('/', $route);
 
+// Action-Bestandteil ermitteln (aus customRoutes oder aus $parts)
+$actionPart = $actionName ?? ($parts[1] ?? 'index');
 
+// Normalisiere mögliche Action-Namen (kandidaten)
+$actionNormalized = str_replace(['-', ' '], '_', $actionPart);
+$actionCamel = lcfirst(str_replace(' ', '', ucwords(str_replace(['-', '_'], ' ', $actionNormalized))));
+$actionCandidates = [
+    $actionPart,
+    $actionNormalized,
+    strtolower($actionNormalized),
+    $actionCamel,
+    $actionCamel . 'Action',
+    $actionNormalized . 'Action',
+    $actionPart . 'Action'
+];
 
-// 9) Prüfen, ob die gewünschte Methode existiert
-
-if (!method_exists($controller, $actionName)) {
-
-    exit("Aktion '$actionName' im Controller '$controllerClass' existiert nicht.");
-
+// Finde die erste existierende Methode in der Controller-Instanz
+$actionToCall = null;
+foreach ($actionCandidates as $cand) {
+    if (method_exists($controller, $cand)) {
+        $actionToCall = $cand;
+        break;
+    }
 }
 
+if ($actionToCall === null) {
+    error_log("Router: keine Action gefunden für Route '{$route}' (candidates: " . implode(',', $actionCandidates) . ")");
+    header("HTTP/1.0 404 Not Found");
+    exit("Aktion '{$actionPart}' im Controller '{$controllerClass}' existiert nicht.");
+}
 
-
-// 10) Aktion aufrufen
-
-$controller->$actionName();
+// Rufe die Aktion auf und übergebe weitere Pfadteile als Parameter
+$params = array_slice($parts, 2);
+call_user_func_array([$controller, $actionToCall], $params);
+$controller = new $controllerName();
+call_user_func_array([$controller, $actionToCall], array_slice($parts, 2));
 
