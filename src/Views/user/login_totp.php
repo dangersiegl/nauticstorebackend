@@ -23,7 +23,7 @@ require __DIR__ . '/../partials/header.php';
         </form>
 
         <p class="help-text">
-            Öffne deine Authenticator-App und gib den sechsstelligen Code ein.
+            Öffnen Sie Ihre Authenticator-App und geben Sie den sechsstelligen Code ein.
         </p>
     </div>
 </div>

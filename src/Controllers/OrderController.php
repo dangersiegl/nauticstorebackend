@@ -4,6 +4,7 @@
  */
 
 use App\Models\OrderModel;
+use App\Models\ProductModel; // neu importieren
 
 class OrderController
 {
@@ -80,13 +81,92 @@ class OrderController
         header('Location: ?controller=order&action=list');
     }
 
+    public function neu()
+    {
+        // Nur Admins dürfen neue Bestellungen anlegen
+        $this->requireAdmin();
+
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+
+        $error = null;
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            // Einfacher POST-Handler: aktueller User (Admin) legt Bestellung mit einem Produkt an
+            $userId    = $_SESSION['user_id'] ?? null;
+            $productId = $_POST['product_id'] ?? null;
+            $quantity  = max(1, (int)($_POST['quantity'] ?? 1));
+
+            if (!$userId || !$productId) {
+                $error = "Bitte ein Produkt auswählen.";
+            } else {
+                // Produktdaten holen (falls vorhanden) — Price optional
+                $product = ProductModel::getById($productId);
+                $price = $product['price'] ?? 0;
+
+                $items = [
+                    ['product_id' => $productId, 'quantity' => $quantity, 'price' => $price]
+                ];
+
+                $orderId = OrderModel::createOrder($userId, $items);
+
+                header('Location: ?controller=order&action=view&id=' . urlencode($orderId));
+                exit;
+            }
+        }
+
+        // Produkte für das Dropdown holen
+        $products = ProductModel::getAll();
+
+        // Falls es eine dedicated View gibt, diese verwenden
+        $viewFile = __DIR__ . '/../Views/order/create.php';
+        if (file_exists($viewFile)) {
+            require_once $viewFile;
+            return;
+        }
+
+        // Fallback: einfache Form inline rendern (verwenden Sie besser eine View-Datei)
+        require __DIR__ . '/../Views/partials/header.php';
+        ?>
+        <div class="content-box">
+            <h2>Neue Bestellung anlegen</h2>
+
+            <?php if (!empty($error)): ?>
+                <div class="error-message"><?php echo htmlspecialchars($error); ?></div>
+            <?php endif; ?>
+
+            <form method="post" action="?controller=order&action=neu" class="admin-form">
+                <div class="form-group">
+                    <label for="product_id">Produkt</label>
+                    <select name="product_id" id="product_id" required>
+                        <?php foreach ($products as $p): 
+                            $label = $p['name_de'] ?? $p['name_en'] ?? '(kein Name)';
+                        ?>
+                            <option value="<?php echo htmlspecialchars($p['id']); ?>"><?php echo htmlspecialchars($label); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="quantity">Menge</label>
+                    <input type="number" name="quantity" id="quantity" value="1" min="1">
+                </div>
+
+                <button type="submit" class="btn btn-primary">Bestellung anlegen</button>
+            </form>
+        </div>
+        <?php
+        require __DIR__ . '/../Views/partials/footer.php';
+    }
+
     private function requireLogin()
     {
         if (session_status() === PHP_SESSION_NONE) {
             session_start();
         }
         if (empty($_SESSION['user_id'])) {
-            die('Du musst eingeloggt sein, um zu bestellen.');
+            die('Sie müssen eingeloggt sein, um zu bestellen.');
         }
     }
 

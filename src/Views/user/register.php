@@ -8,25 +8,32 @@ $pageTitle = 'Registrieren';
 require __DIR__ . '/../partials/header.php'; 
 ?>
 
-<h2>Registrieren</h2>
+<div class="admin-main login-page">
+    <div class="login-box">
+        <h2>Registrieren</h2>
 
-<?php if (!empty($error)): ?>
-    <p style="color:red;"><?php echo htmlspecialchars($error); ?></p>
-<?php endif; ?>
-<div class="form-container">
-    <form method="post" action="/register">
-        <label for="email">E-Mail:</label>
-        <input type="email" name="email" id="email" required>
+        <?php if (!empty($error)): ?>
+            <div class="error-message"><?php echo htmlspecialchars($error); ?></div>
+        <?php endif; ?>
 
-        <label for="password">Passwort:</label>
-        <input type="password" name="password" id="password" required>
+        <form method="post" action="/register" class="login-form">
+            <div class="form-group">
+                <label for="email">E-Mail:</label>
+                <input type="email" name="email" id="email" required>
+            </div>
 
-        <button type="submit">Registrieren</button>
-    </form>
+            <div class="form-group">
+                <label for="password">Passwort:</label>
+                <input type="password" name="password" id="password" required>
+            </div>
 
-    <p>
-        <a href="/login">Zum Login</a>
-    </p>
+            <button type="submit" class="btn btn-primary">Registrieren</button>
+        </form>
+
+        <p class="register-link">
+            <a href="/login">Zum Login</a>
+        </p>
+    </div>
 </div>
 
 <?php 

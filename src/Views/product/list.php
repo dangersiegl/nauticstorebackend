@@ -8,7 +8,7 @@ $pageTitle = 'Produktliste';
 require __DIR__ . '/../partials/header.php';
 ?>
 
-<div class="admin-main">
+<div class="content-box">
     <h2>Produkte</h2>
 
     <div class="admin-actions">
@@ -18,8 +18,8 @@ require __DIR__ . '/../partials/header.php';
         <?php endif; ?>
     </div>
 
-    <?php if (!empty($products)): ?>
-        <table border="1" class="table table-striped" style="width: 100%; border-collapse: collapse;">
+    <?php if (!empty($products) && is_array($products)): ?>
+        <table border="1" class="admin-table" style="width: 100%; border-collapse: collapse;">
             <thead>
                 <tr>
                     <th style="padding: 8px; background-color: #f2f2f2;">ID</th>
@@ -32,35 +32,36 @@ require __DIR__ . '/../partials/header.php';
                 </tr>
             </thead>
             <tbody>
-                <?php foreach ($products as $p): ?>
+                <?php foreach ($products as $p): 
+                    // Sichere Zugriffe mit Fallbacks
+                    $id = $p['id'] ?? '';
+                    $name = $p['name_de'] ?? $p['name_en'] ?? '(kein Name)';
+                    // Beschreibung: kurze bevorzugen, dann lange; deutsch zuerst
+                    $description = $p['short_description_de'] ?? $p['description_de'] 
+                                 ?? $p['short_description_en'] ?? $p['description_en'] ?? '';
+                    // Price ggf. vorhanden (Tabelle hat aktuell kein price-Feld)
+                    $priceRaw = $p['price'] ?? null;
+                    $priceDisplay = '-';
+                    if ($priceRaw !== null && $priceRaw !== '') {
+                        // nur formatieren, wenn numerisch
+                        if (is_numeric($priceRaw)) {
+                            $priceDisplay = number_format((float)$priceRaw, 2, ',', '.') . ' €';
+                        } else {
+                            $priceDisplay = htmlspecialchars((string)$priceRaw);
+                        }
+                    }
+                ?>
                     <tr>
-                        <td style="padding: 8px;">
-                            <?php echo htmlspecialchars($p['id']); ?>
-                        </td>
-                        <td style="padding: 8px;">
-                            <?php echo htmlspecialchars($p['name']); ?>
-                        </td>
-                        <td style="padding: 8px;">
-                            <!-- Preis formatieren, z.B. mit 2 Nachkommastellen -->
-                            <?php echo number_format($p['price'], 2, ',', '.'); ?> €
-                        </td>
-                        <td style="padding: 8px;">
-                            <!-- Zeilenumbrüche in der Beschreibung beibehalten -->
-                            <?php echo nl2br(htmlspecialchars($p['description'])); ?>
-                        </td>
+                        <td style="padding: 8px;"><?php echo htmlspecialchars((string)$id); ?></td>
+                        <td style="padding: 8px;"><?php echo htmlspecialchars($name); ?></td>
+                        <td style="padding: 8px;"><?php echo $priceDisplay; ?></td>
+                        <td style="padding: 8px;"><?php echo $description !== '' ? nl2br(htmlspecialchars($description)) : '&mdash;'; ?></td>
                         <?php if (!empty($_SESSION['is_admin'])): ?>
                             <td style="padding: 8px;">
                                 <!-- Bearbeiten und Löschen, 
                                      ggf. an dein eigenes Routing anpassen -->
-                                <a href="?controller=product&action=edit&id=<?php echo $p['id']; ?>"
-                                   class="btn btn-secondary">
-                                   Bearbeiten
-                                </a>
-                                <a href="?controller=product&action=delete&id=<?php echo $p['id']; ?>"
-                                   class="btn btn-danger"
-                                   onclick="return confirm('Wirklich löschen?');">
-                                   Löschen
-                                </a>
+                                <a href="?controller=product&action=edit&id=<?php echo urlencode($id); ?>" class="btn btn-secondary">Bearbeiten</a>
+                                <a href="?controller=product&action=delete&id=<?php echo urlencode($id); ?>" class="btn btn-delete" onclick="return confirm('Wirklich löschen?');">Löschen</a>
                             </td>
                         <?php endif; ?>
                     </tr>

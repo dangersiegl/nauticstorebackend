@@ -5,8 +5,8 @@ $pageTitle = 'Benutzer bearbeiten';
 require __DIR__ . '/../partials/header.php';
 ?>
 
-<div class="admin-main login-page">
-    <div class="login-box">
+<div class="admin-main">
+    <div class="content-box">
         <h2>Benutzer bearbeiten</h2>
 
         <?php if (!empty($error)): ?>
@@ -14,9 +14,7 @@ require __DIR__ . '/../partials/header.php';
         <?php endif; ?>
 
         <?php if (!empty($user)): ?>
-            <form method="post" action="">
-                <!-- Tipp: action leer lassen, 
-                     so bleibt man auf /user/edit/123 -->
+            <form method="post" action="" class="admin-form">
                 <div class="form-group">
                     <label for="email">E-Mail:</label>
                     <input type="email" name="email" id="email" 

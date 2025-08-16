@@ -18,14 +18,14 @@ class OrderModel
         $pdo->beginTransaction();
         try {
             // Gesamtsumme berechnen
-            $totalPrice = 0;
+            $totalAmount = 0;
             foreach ($items as $item) {
-                $totalPrice += $item['price'] * $item['quantity'];
+                $totalAmount += $item['price'] * $item['quantity'];
             }
 
-            // Order erstellen
-            $stmt = $pdo->prepare("INSERT INTO orders (user_id, total_price, status) VALUES (?, ?, 'pending')");
-            $stmt->execute([$userId, $totalPrice]);
+            // Order erstellen (angepasster Spaltenname total_amount)
+            $stmt = $pdo->prepare("INSERT INTO orders_orders (user_id, total_amount, status) VALUES (?, ?, 'pending')");
+            $stmt->execute([$userId, $totalAmount]);
             $orderId = $pdo->lastInsertId();
 
             // OrderItems anlegen
@@ -49,9 +49,9 @@ class OrderModel
     {
         $pdo = Database::getConnection();
         $stmt = $pdo->query("SELECT o.*, u.email AS user_email 
-                             FROM orders o
+                             FROM orders_orders o
                              JOIN users_users u ON o.user_id = u.id
-                             ORDER BY o.created_at DESC");
+                             ORDER BY o.order_date DESC");
         return $stmt->fetchAll();
     }
 
@@ -63,17 +63,17 @@ class OrderModel
         $pdo = Database::getConnection();
         // Order
         $stmt = $pdo->prepare("SELECT o.*, u.email AS user_email 
-                               FROM orders o
+                               FROM orders_orders o
                                JOIN users_users u ON o.user_id = u.id
                                WHERE o.id = ?");
         $stmt->execute([$orderId]);
         $order = $stmt->fetch();
 
         if ($order) {
-            // Items
-            $stmtItems = $pdo->prepare("SELECT oi.*, p.name 
+            // Items: Produktname aus products_products.name_de verwenden
+            $stmtItems = $pdo->prepare("SELECT oi.*, p.name_de AS product_name
                                         FROM order_items oi
-                                        JOIN products p ON oi.product_id = p.id
+                                        JOIN products_products p ON oi.product_id = p.id
                                         WHERE oi.order_id = ?");
             $stmtItems->execute([$orderId]);
             $order['items'] = $stmtItems->fetchAll();
@@ -88,7 +88,7 @@ class OrderModel
     public static function updateStatus($orderId, $status)
     {
         $pdo = Database::getConnection();
-        $stmt = $pdo->prepare("UPDATE orders SET status = ? WHERE id = ?");
+        $stmt = $pdo->prepare("UPDATE orders_orders SET status = ? WHERE id = ?");
         return $stmt->execute([$status, $orderId]);
     }
 }

@@ -103,4 +103,59 @@ class UserModel
         $stmt->execute([$secret, $id]);
         return $stmt->rowCount() > 0;
     }
+
+    /**
+     * TOTP-Secret für einen Nutzer setzen
+     */
+    public static function setTOTPSecret($userId, $secret)
+    {
+        $pdo = Database::getConnection();
+        $stmt = $pdo->prepare("UPDATE users_users SET totp_secret = ? WHERE id = ?");
+        return $stmt->execute([$secret, $userId]);
+    }
+
+    /**
+     * MFA für einen Nutzer deaktivieren
+     */
+    public static function disableMFA($userId)
+    {
+        $pdo = Database::getConnection();
+        $stmt = $pdo->prepare("UPDATE users_users SET totp_secret = NULL WHERE id = ?");
+        return $stmt->execute([$userId]);
+    }
+
+    /**
+     * Passwortüberprüfung für einen Nutzer
+     */
+    public static function verifyPassword($userId, $password)
+    {
+        $pdo = Database::getConnection();
+        $stmt = $pdo->prepare("SELECT * FROM users_users WHERE id = ?");
+        $stmt->execute([$userId]);
+        $row = $stmt->fetch();
+
+        if (!$row) {
+            return false;
+        }
+
+        // Wenn ein gespeicherter Wert vorhanden ist, zuerst password_verify versuchen
+        if (isset($row['password']) && $row['password'] !== null && $row['password'] !== '') {
+            $hash = (string)$row['password'];
+
+            // password_verify deckt alle password_hash()-Formate ab
+            if (password_verify($password, $hash)) {
+                return true;
+            }
+
+            // Fallback: falls historisch Klartext gespeichert (nur falls notwendig)
+            if (hash_equals($hash, $password)) {
+                return true;
+            }
+
+            return false;
+        }
+
+        // Keine passende Passwort-Spalte / kein Wert
+        return false;
+    }
 }

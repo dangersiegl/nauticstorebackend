@@ -4,10 +4,10 @@
  */
 
 // DB-Konfiguration (bitte anpassen)
-define('DB_HOST', 'server.com');
-define('DB_NAME', 'database');
-define('DB_USER', 'dbuser');
-define('DB_PASS', 'dbpass');
+define('DB_HOST', 'localhost');
+define('DB_NAME', 'd042e965');
+define('DB_USER', 'd042e965');
+define('DB_PASS', 'hUbLTgbPNe2jURM9bxY9');
 
 // Weitere Einstellungen
 define('APP_NAME', 'Nauticstore24.at');

@@ -21,42 +21,104 @@ class UserController
      */
 
     public function register() {
-
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-
-            $email = $_POST['email'] ?? '';
-
-            $password = $_POST['password'] ?? '';
-
-
-
-
-
-            // TOTP-Secret generieren
-
-            $totpSecret = $this->generateTOTPSecret();
-
-
-
-            // Benutzer in der Datenbank speichern
-            $created = UserModel::register($email, $password, $totpSecret);
-
-            if ($created) {
-                // QR-Code anzeigen
-                $uri = $this->generateTOTPProvisioningUri($email, $totpSecret);
-                echo "Bitte scanne diesen QR-Code mit Google Authenticator:<br>";
-                echo "<img src='https://chart.googleapis.com/chart?chs=200x200&cht=qr&chl=" . urlencode($uri) . "' alt='QR Code'>";
-            } else {
-                echo "Registrierung fehlgeschlagen!";
-            }
-
-
-        } else {
-
-            require_once __DIR__ . '/../Views/user/register.php';
-
+        // Stelle sicher, dass Session läuft
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
         }
 
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            // Schritt 2: TOTP-Code wurde eingegeben -> endgültige Anlage versuchen
+            if (isset($_POST['totp'])) {
+                $totpCode = trim($_POST['totp'] ?? '');
+
+                // Prüfe, ob es eine temporäre Registrierung in der Session gibt
+                if (empty($_SESSION['pending_reg'])) {
+                    $error = "Sitzung abgelaufen. Bitte registrieren Sie sich erneut.";
+                    require_once __DIR__ . '/../Views/user/register.php';
+                    return;
+                }
+
+                $pending = $_SESSION['pending_reg'];
+                $email = $pending['email'];
+                $password = $pending['password'];
+                $totpSecret = $pending['secret'];
+
+                // TOTP validieren
+                if ($this->verifyTOTP($totpSecret, $totpCode)) {
+                    // TOTP korrekt -> Benutzer jetzt endgültig anlegen
+                    $created = UserModel::register($email, $password, $totpSecret);
+
+                    // Temporäre Daten entfernen
+                    unset($_SESSION['pending_reg']);
+
+                    if ($created) {
+                        // User erfolgreich angelegt -> zur Login-Seite leiten
+                        header('Location: /login');
+                        exit;
+                    } else {
+                        $error = "Fehler beim Anlegen des Benutzers. Bitte versuchen Sie es erneut.";
+                        require_once __DIR__ . '/../Views/user/register.php';
+                        return;
+                    }
+                } else {
+                    // TOTP falsch -> Fehlermeldung und QR-View erneut zeigen
+                    $error = "Ungültiger TOTP-Code. Bitte geben Sie den aktuellen Code aus Ihrer Authenticator-App ein.";
+
+                    // QR-Code wieder erzeugen
+                    $uri = $this->generateTOTPProvisioningUri($email, $totpSecret);
+                    $qrCodeUrl = "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=" . urlencode($uri);
+                    $data = ['secret' => $totpSecret];
+
+                    require_once __DIR__ . '/../Views/user/register_totp.php';
+                    return;
+                }
+
+            // Schritt 1: E-Mail + Passwort wurden gesendet -> TOTP vorbereiten und QR anzeigen
+            } elseif (isset($_POST['email']) && isset($_POST['password'])) {
+                $email = trim($_POST['email'] ?? '');
+                $password = $_POST['password'] ?? '';
+
+                // Grundlegende Validierung
+                if (empty($email) || empty($password)) {
+                    $error = "Bitte geben Sie E-Mail und Passwort an.";
+                    require_once __DIR__ . '/../Views/user/register.php';
+                    return;
+                }
+
+                // Prüfen, ob User bereits existiert
+                $existing = UserModel::getByEmail($email);
+                if ($existing) {
+                    $error = "Ein Benutzer mit dieser E-Mail existiert bereits.";
+                    require_once __DIR__ . '/../Views/user/register.php';
+                    return;
+                }
+
+                // TOTP-Secret erzeugen und temporär in Session speichern (erst nach TOTP prüfen endgültig anlegen)
+                $totpSecret = $this->generateTOTPSecret();
+                $_SESSION['pending_reg'] = [
+                    'email' => $email,
+                    'password' => $password, // Achtung: Klartext nur temporär in Session
+                    'secret' => $totpSecret,
+                    'created_at' => time()
+                ];
+
+                // Provisioning URI und QR-URL erzeugen
+                $uri = $this->generateTOTPProvisioningUri($email, $totpSecret);
+                $qrCodeUrl = "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=" . urlencode($uri);
+                $data = ['secret' => $totpSecret];
+
+                // Zeige TOTP-Registrierungsseite (mit Formular zur Code-Eingabe)
+                require_once __DIR__ . '/../Views/user/register_totp.php';
+                return;
+            }
+
+            // Falls POST, aber kein erwartetes Feld -> Formular erneut zeigen
+            require_once __DIR__ . '/../Views/user/register.php';
+            return;
+        }
+
+        // GET -> Registrierungsformular anzeigen
+        require_once __DIR__ . '/../Views/user/register.php';
     }
 
 
@@ -79,17 +141,22 @@ class UserController
                 $user = UserModel::verifyLogin($email, $password);
 
                 if ($user) {
-                    if (!empty($user['totp_secret'])) {
-                        // Weiterleitung zur TOTP-Seite, falls ein Secret existiert
-                        $_SESSION['pending_user_id'] = $user['id'];
-                        header('Location: /login/totp');
-                        exit;
+                    // Nur Admins dürfen sich im Backend einloggen
+                    if (empty($user['is_admin']) || $user['is_admin'] != 1) {
+                        $error = "Nur Administratoren dürfen sich im Backend anmelden.";
                     } else {
-                        // Direkt einloggen
-                        $_SESSION['user_id'] = $user['id'];
-                        $_SESSION['is_admin'] = $user['is_admin'];
-                        header('Location: /dashboard');
-                        exit;
+                        if (!empty($user['totp_secret'])) {
+                            // Weiterleitung zur TOTP-Seite, falls ein Secret existiert
+                            $_SESSION['pending_user_id'] = $user['id'];
+                            header('Location: /login/totp');
+                            exit;
+                        } else {
+                            // Direkt einloggen
+                            $_SESSION['user_id'] = $user['id'];
+                            $_SESSION['is_admin'] = $user['is_admin'];
+                            header('Location: /dashboard');
+                            exit;
+                        }
                     }
                 } else {
                     $error = 'Ungültige Login-Daten!';
@@ -117,23 +184,28 @@ class UserController
                 $user = UserModel::verifyLogin($email, $password);
 
                 if ($user) {
-                    // Passwort korrekt
-                    if (!empty($user['totp_secret'])) {
-                        // Schritt 2 (TOTP) erforderlich
-                        $_SESSION['pending_user_id'] = $user['id'];
-                        header('Location: /login/totp');
-                        exit;
+                    // Nur Admins dürfen sich im Backend einloggen
+                    if (empty($user['is_admin']) || $user['is_admin'] != 1) {
+                        $error = "Nur Administratoren dürfen sich im Backend anmelden.";
                     } else {
-                        // Direkt einloggen
-                        $_SESSION['user_id'] = $user['id'];
-                        $_SESSION['is_admin'] = $user['is_admin'];
-                        header('Location: /dashboard');
-                        exit;
+                        // Passwort korrekt
+                        if (!empty($user['totp_secret'])) {
+                            // Schritt 2 (TOTP) erforderlich
+                            $_SESSION['pending_user_id'] = $user['id'];
+                            header('Location: /login/totp');
+                            exit;
+                        } else {
+                            // Direkt einloggen
+                            $_SESSION['user_id'] = $user['id'];
+                            $_SESSION['is_admin'] = $user['is_admin'];
+                            header('Location: /dashboard');
+                            exit;
+                        }
                     }
-                  } else {
-                      // E-Mail/Passwort falsch
-                      $error = "Falsche Login-Daten!";
-                  }
+                } else {
+                    // E-Mail/Passwort falsch
+                    $error = "Falsche Login-Daten!";
+                }
 
             // 2) Wurde ein TOTP-Code gesendet (Schritt 2)?
             } elseif (isset($_POST['totp'])) {
@@ -145,12 +217,18 @@ class UserController
                     $user = UserModel::getById($userId);
 
                     if ($user && $this->verifyTOTP($user['totp_secret'], $totpCode)) {
-                        // TOTP korrekt => endgültig einloggen
-                        $_SESSION['user_id'] = $user['id'];
-                        $_SESSION['is_admin'] = $user['is_admin'];
-                        unset($_SESSION['pending_user_id']);
-                        header('Location: /dashboard');
-                        exit;
+                        // Prüfe Admin-Recht bevor endgültig einloggen
+                        if (empty($user['is_admin']) || $user['is_admin'] != 1) {
+                            $error = "Nur Administratoren dürfen sich im Backend anmelden.";
+                            unset($_SESSION['pending_user_id']);
+                        } else {
+                            // TOTP korrekt => endgültig einloggen
+                            $_SESSION['user_id'] = $user['id'];
+                            $_SESSION['is_admin'] = $user['is_admin'];
+                            unset($_SESSION['pending_user_id']);
+                            header('Location: /dashboard');
+                            exit;
+                        }
                     } else {
                         $error = "Ungültiger TOTP-Code!";
                     }
@@ -187,7 +265,7 @@ class UserController
 
             if (!$userId) {
                 // Falls Session abgelaufen
-                $error = "Sitzung abgelaufen. Bitte erneut einloggen.";
+                $error = "Sitzung abgelaufen. Bitte loggen Sie sich erneut ein.";
                 header('Location: /login');
                 exit;
             }
@@ -195,6 +273,14 @@ class UserController
             $user = UserModel::getById($userId);
 
             if ($user && $this->verifyTOTP($user['totp_secret'], $totpCode)) {
+                // Prüfe Admin-Recht bevor endgültig einloggen
+                if (empty($user['is_admin']) || $user['is_admin'] != 1) {
+                    $error = "Nur Administratoren dürfen sich im Backend anmelden.";
+                    unset($_SESSION['pending_user_id']);
+                    require_once __DIR__ . '/../Views/user/login.php';
+                    return;
+                }
+
                 // Erfolgreich: Endgültig einloggen
                 $_SESSION['user_id'] = $user['id'];
                 $_SESSION['is_admin'] = $user['is_admin'];
@@ -219,7 +305,7 @@ class UserController
             $userId   = $_SESSION['pending_user_id'] ?? null;
 
             if (!$userId) {
-                $error = "Sitzung abgelaufen. Bitte erneut einloggen.";
+                $error = "Sitzung abgelaufen. Bitte loggen Sie sich erneut ein.";
                 header('Location: /login');
                 exit;
             }
@@ -234,6 +320,14 @@ class UserController
 
             // TOTP-Validierung
             if ($this->verifyTOTP($user['totp_secret'], $totpCode)) {
+                // Prüfe Admin-Recht bevor endgültig einloggen
+                if (empty($user['is_admin']) || $user['is_admin'] != 1) {
+                    $error = "Nur Administratoren dürfen sich im Backend anmelden.";
+                    unset($_SESSION['pending_user_id']);
+                    require_once __DIR__ . '/../Views/user/login.php';
+                    return;
+                }
+
                 // Erfolgreich
                 $_SESSION['user_id'] = $user['id'];
                 $_SESSION['is_admin'] = $user['is_admin'];
@@ -274,92 +368,87 @@ class UserController
 
      public function enableMFA()
      {
-         // Prüfen, ob eingeloggt
+         // Session sicherstellen
+         if (session_status() === PHP_SESSION_NONE) {
+             session_start();
+         }
+
+         // Login sicherstellen
          if (empty($_SESSION['user_id'])) {
              header('Location: /login');
              exit;
          }
-     
-         // 1) TOTP-Secret generieren
-         $secret = $this->generateTOTPSecret(); 
-     
-           // 2) In DB speichern
-           UserModel::updateTotpSecret($_SESSION['user_id'], $secret);
-     
-         // 3) Provisioning-URI erzeugen
-         //    (otpauth://totp/Issuer:Email?secret=ABC...&issuer=Issuer)
-         $userEmail = $_SESSION['user_email'] ?? 'user@example.com'; // z. B. in der Session oder DB
-         $issuer    = 'Nauticstore24.at'; 
-         $totpUri   = $this->generateTOTPProvisioningUri($userEmail, $secret, $issuer);
-     
-         // 4) View aufrufen und QR-Code anzeigen
-         require __DIR__ . '/../Views/mfa/enable.php';
-     }
-     
-     // Beispiel-Hilfsfunktionen (du kannst sie auch schon haben):
-     private function generateTOTPSecret($length = 16)
-     {
-         $alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-         $secret = '';
-         for ($i = 0; $i < $length; $i++) {
-             $secret .= $alphabet[random_int(0, strlen($alphabet) - 1)];
+
+         $userId = $_SESSION['user_id'];
+         $user = UserModel::getById($userId);
+
+         if (!$user) {
+             die('Benutzer nicht gefunden.');
          }
-         return $secret;
+
+         // Wenn bereits aktiviert
+         if (!empty($user['totp_secret'])) {
+             $mfa_enabled = true;
+             // View zeigt "aktiviert" + Deaktivieren-Formular
+             require_once __DIR__ . '/../Views/mfa/enable.php';
+             return;
+         }
+
+         // POST: TOTP-Code zur Bestätigung eingegangen -> endgültig aktivieren
+         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['totp'])) {
+             $code = trim($_POST['totp'] ?? '');
+             $pending = $_SESSION['pending_mfa'] ?? null;
+
+            if (empty($pending) || empty($pending['secret'])) {
+                $error = "Sitzung abgelaufen. Bitte starten Sie die Aktivierung erneut.";
+                require_once __DIR__ . '/../Views/mfa/enable.php';
+                return;
+            }
+
+            $secret = $pending['secret'];
+            if ($this->verifyTOTP($secret, $code)) {
+                // Speichern des Secrets in der DB
+                $saved = UserModel::setTOTPSecret($userId, $secret);
+                unset($_SESSION['pending_mfa']);
+
+                if ($saved) {
+                    // Erfolgreich aktiviert
+                    header('Location: /user/mfa/enable');
+                    exit;
+                } else {
+                    $error = "Fehler beim Aktivieren. Bitte versuchen Sie es erneut.";
+                    require_once __DIR__ . '/../Views/mfa/enable.php';
+                    return;
+                }
+            } else {
+                // Falscher Code -> QR/Secret wieder anzeigen
+                $error = "Ungültiger TOTP-Code. Bitte geben Sie den aktuellen Code aus Ihrer Authenticator-App ein.";
+                $totpUri = $this->generateTOTPProvisioningUri($user['email'] ?? $userId, $secret);
+                $qrCodeUrl = "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=" . urlencode($totpUri);
+                $secretToShow = $secret;
+                require_once __DIR__ . '/../Views/mfa/enable.php';
+                return;
+            }
+         }
+
+         // GET: vorbereiten (temporäres Secret in Session speichern und QR zeigen)
+         $totpSecret = $this->generateTOTPSecret();
+         $_SESSION['pending_mfa'] = ['secret' => $totpSecret, 'created_at' => time()];
+
+         // Provisioning URI (Label: Email falls vorhanden)
+         $totpUri = $this->generateTOTPProvisioningUri($user['email'] ?? $userId, $totpSecret);
+         $qrCodeUrl = "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=" . urlencode($totpUri);
+         $secretToShow = $totpSecret;
+         // View zeigt QR + Eingabeformular für Bestätigungscode
+         require_once __DIR__ . '/../Views/mfa/enable.php';
      }
-     
-    private function generateTOTPProvisioningUri($email, $secret, $issuer = 'Nauticstore24.at')
-    {
-        $issuerEncoded = urlencode($issuer);
-        $emailEncoded  = urlencode($email);
-        return "otpauth://totp/{$issuerEncoded}:{$emailEncoded}?secret={$secret}&issuer={$issuerEncoded}";
-    }
-     
 
-
-
-    /**
+     /**
 
      * TOTP-Code prüfen
 
      */
 
-    private function verifyTOTP($secret, $inputCode, $interval = 30, $tolerance = 1) {
-
-        $time = floor(time() / $interval);
-
-        $secret = $this->base32Decode($secret);
-
-
-
-        for ($i = -$tolerance; $i <= $tolerance; $i++) {
-
-            $hash = hash_hmac('sha1', pack('N*', 0) . pack('N*', $time + $i), $secret, true);
-
-            $offset = ord($hash[strlen($hash) - 1]) & 0x0F;
-
-            $code = (ord($hash[$offset]) & 0x7F) << 24 |
-
-                    (ord($hash[$offset + 1]) & 0xFF) << 16 |
-
-                    (ord($hash[$offset + 2]) & 0xFF) << 8 |
-
-                    (ord($hash[$offset + 3]) & 0xFF);
-
-            $code %= 10 ** 6;
-
-
-
-            if (str_pad($code, 6, '0', STR_PAD_LEFT) === $inputCode) {
-
-                return true;
-
-            }
-
-        }
-
-        return false;
-
-    }
 
 
 
@@ -515,5 +604,143 @@ class UserController
     }
 
 
-}
+    public function disableMFA()
+    {
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
 
+        // Nur POST akzeptieren
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: /user/mfa/enable');
+            exit;
+        }
+
+        // Login sicherstellen
+        if (empty($_SESSION['user_id'])) {
+            header('Location: /login');
+            exit;
+        }
+
+        $userId = $_SESSION['user_id'];
+        $password = $_POST['password'] ?? '';
+
+        if (empty($password)) {
+            // Fehlermeldung zurück zur View
+            $error = "Bitte geben Sie Ihr Passwort zur Bestätigung ein.";
+            $user = UserModel::getById($userId);
+            $mfa_enabled = !empty($user['totp_secret']);
+            require_once __DIR__ . '/../Views/mfa/enable.php';
+            return;
+        }
+
+        // Passwort prüfen
+        if (!UserModel::verifyPassword($userId, $password)) {
+            $error = "Passwort falsch. MFA wurde nicht deaktiviert.";
+            $user = UserModel::getById($userId);
+            $mfa_enabled = !empty($user['totp_secret']);
+            require_once __DIR__ . '/../Views/mfa/enable.php';
+            return;
+        }
+
+        // Passwort korrekt -> MFA deaktivieren
+        $disabled = UserModel::disableMFA($userId);
+        if ($disabled) {
+            $_SESSION['success_message'] = 'Zwei-Faktor-Authentifizierung wurde deaktiviert.';
+        } else {
+            $_SESSION['error_message'] = 'Fehler beim Deaktivieren der Zwei-Faktor-Authentifizierung.';
+        }
+
+        header('Location: /user/mfa/enable');
+        exit;
+    }
+
+	// --- TOTP / MFA Hilfsmethoden (einmalig, keine Duplikate) ---
+	// Generiert ein neues TOTP-Secret (Base32)
+	protected function generateTOTPSecret(): string
+	{
+		$random = random_bytes(20); // 160 bit
+		return $this->base32_encode($random);
+	}
+
+	// Erstellt eine Provisioning-URI für Authenticator-Apps (otpauth://totp/...)
+	protected function generateTOTPProvisioningUri(string $label, string $secret, string $issuer = 'Nauticstore24'): string
+	{
+		$account = rawurlencode($issuer . ':' . $label);
+		$qs = http_build_query([
+			'secret' => $secret,
+			'issuer' => $issuer,
+			'algorithm' => 'SHA1',
+			'digits' => 6,
+			'period' => 30
+		]);
+		return "otpauth://totp/{$account}?{$qs}";
+	}
+
+	// Verifiziert einen TOTP-Code gegen das Secret (Fenster +/- 1 Intervall)
+	protected function verifyTOTP(string $secret, string $code, int $window = 1): bool
+	{
+		$code = trim($code);
+		if ($code === '') return false;
+		$secretBin = $this->base32_decode($secret);
+		if ($secretBin === false) return false;
+
+		$timeStep = floor(time() / 30);
+		for ($i = -$window; $i <= $window; $i++) {
+			$ts = $timeStep + $i;
+			$packet = pack('N*', 0) . pack('N*', $ts); // 64-bit BE
+			$hash = hash_hmac('sha1', $packet, $secretBin, true);
+			$offset = ord(substr($hash, -1)) & 0x0F;
+			$truncated = (
+				((ord($hash[$offset]) & 0x7f) << 24) |
+				((ord($hash[$offset + 1]) & 0xff) << 16) |
+				((ord($hash[$offset + 2]) & 0xff) << 8) |
+				(ord($hash[$offset + 3]) & 0xff)
+			);
+			$calculated = $truncated % 1000000;
+			if (str_pad((string)$calculated, 6, '0', STR_PAD_LEFT) === str_pad($code, 6, '0', STR_PAD_LEFT)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	// --- Hilfsfunktionen Base32 ---
+	protected function base32_encode(string $data): string
+	{
+		$alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+		$bits = '';
+		$output = '';
+		for ($i = 0, $len = strlen($data); $i < $len; $i++) {
+			$bits .= str_pad(decbin(ord($data[$i])), 8, '0', STR_PAD_LEFT);
+		}
+		$chunks = str_split($bits, 5);
+		foreach ($chunks as $chunk) {
+			if (strlen($chunk) < 5) $chunk = str_pad($chunk, 5, '0', STR_PAD_RIGHT);
+			$output .= $alphabet[bindec($chunk)];
+		}
+		// Optional: padding can be omitted for TOTP secrets
+		return $output;
+	}
+
+	protected function base32_decode(string $b32)
+	{
+		$b32 = strtoupper(preg_replace('/[^A-Z2-7]/', '', $b32));
+		if ($b32 === '') return '';
+		$alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+		$bits = '';
+		for ($i = 0, $len = strlen($b32); $i < $len; $i++) {
+			$pos = strpos($alphabet, $b32[$i]);
+			if ($pos === false) return false;
+			$bits .= str_pad(decbin($pos), 5, '0', STR_PAD_LEFT);
+		}
+		$bytes = str_split($bits, 8);
+		$out = '';
+		foreach ($bytes as $byte) {
+			if (strlen($byte) < 8) continue;
+			$out .= chr(bindec($byte));
+		}
+		return $out;
+	}
+
+}

@@ -5,7 +5,7 @@ $pageTitle = 'Bestellungen';
 require __DIR__ . '/../partials/header.php';
 ?>
 
-<div class="admin-main">
+<div class="content-box">
     <h2>Bestellungen</h2>
 
     <?php if (!empty($orders)): ?>

@@ -8,40 +8,28 @@ require __DIR__ . '/partials/header.php';
 
 ?>
 
-<div class="admin-main">
-    <h2>Willkommen im Admin-Dashboard</h2>
+<div class="content-box">
+    <h2>Dashboard</h2>
 
-    <p>Hier findest du eine Übersicht deiner Bestellungen, Produkte und weitere Statistiken.</p>
+    <p>Willkommen im Backend. Hier finden Sie eine Übersicht über den aktuellen Systemstatus.</p>
 
-    <!-- Beispiel für eine Übersichtstabelle -->
-    <table class="admin-table">
-        <thead>
-            <tr>
-                <th>Bestell-ID</th>
-                <th>Produkt</th>
-                <th>Menge</th>
-                <th>Preis</th>
-                <th>Status</th>
-            </tr>
-        </thead>
-        <tbody>
-            <?php if (!empty($orders)): ?>
-                <?php foreach ($orders as $order): ?>
-                    <tr>
-                        <td><?php echo htmlspecialchars($order['id']); ?></td>
-                        <td><?php echo htmlspecialchars($order['product']); ?></td>
-                        <td><?php echo htmlspecialchars($order['quantity']); ?></td>
-                        <td><?php echo htmlspecialchars($order['price']); ?></td>
-                        <td><?php echo htmlspecialchars($order['status']); ?></td>
-                    </tr>
-                <?php endforeach; ?>
-            <?php else: ?>
-                <tr>
-                    <td colspan="5">Keine Bestellungen gefunden.</td>
-                </tr>
-            <?php endif; ?>
-        </tbody>
-    </table>
+    <!-- Platzhalter-Karten / Kennzahlen (optional, mit Daten befüllen wenn vorhanden) -->
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:16px;">
+        <div style="flex:1 1 200px;padding:12px;border-radius:6px;background:#f9fafb;border:1px solid #ececec;">
+            <h3 style="margin:0 0 8px 0;">Benutzer</h3>
+            <p style="margin:0;font-size:1.25rem;">&mdash;</p>
+        </div>
+        <div style="flex:1 1 200px;padding:12px;border-radius:6px;background:#f9fafb;border:1px solid #ececec;">
+            <h3 style="margin:0 0 8px 0;">Produkte</h3>
+            <p style="margin:0;font-size:1.25rem;">&mdash;</p>
+        </div>
+        <div style="flex:1 1 200px;padding:12px;border-radius:6px;background:#f9fafb;border:1px solid #ececec;">
+            <h3 style="margin:0 0 8px 0;">Bestellungen</h3>
+            <p style="margin:0;font-size:1.25rem;">&mdash;</p>
+        </div>
+    </div>
+
+    <!-- Weitere Dashboard-Inhalte hier einfügen -->
 </div>
 
 <?php

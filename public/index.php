@@ -14,7 +14,15 @@
 
 
 
+ob_start(); 
 session_start();
+
+// Error Reporting
+error_reporting(E_ALL); // Alle Fehler anzeigen
+ini_set('display_errors', 1); // Fehlerausgabe aktivieren
+//ini_set('log_errors', 1); // Fehler in Log-Datei speichern
+//ini_set('error_log', '/var/log/php_errors.log'); // Log-Datei festlegen
+//
 
 
 
@@ -66,6 +74,12 @@ if (file_exists($configFile)) {
 
 require_once __DIR__ . '/../src/Models/Database.php';
 
+// --- Neu: Models zentral laden, damit Namespaced-Klassen (App\Models\...) verfügbar sind ---
+require_once __DIR__ . '/../src/Models/UserModel.php';
+require_once __DIR__ . '/../src/Models/ProductModel.php';
+require_once __DIR__ . '/../src/Models/OrderModel.php';
+// ...bei Bedarf weitere Models hier eintragen...
+
 
 
 // 3) Aktuelle Route auslesen (von .htaccess => ?route=...)
@@ -115,7 +129,8 @@ $customRoutes = [
     'user/store' => ['controller' => 'user', 'action' => 'store'],
     'user/list' => ['controller' => 'user', 'action' => 'list'],
 
-    'user/mfa/enable' => ['controller' => 'user', 'action' => 'enableMFA'],
+    'user/mfa/enable'  => ['controller' => 'user', 'action' => 'enableMFA'],
+    'user/mfa/disable' => ['controller' => 'user', 'action' => 'disableMFA'],
     // Oder falls du einen eigenen Controller MfaController hast:
     // 'mfa/enable' => ['controller' => 'mfa', 'action' => 'enable']
 

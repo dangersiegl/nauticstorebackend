@@ -3,8 +3,8 @@ $pageTitle = 'Neuen Benutzer anlegen';
 require __DIR__ . '/../partials/header.php';
 ?>
 
-<div class="admin-main login-page">
-    <div class="login-box">
+<div class="admin-main">
+    <div class="content-box">
         <h2>Neuen Benutzer anlegen</h2>
 
         <?php if (!empty($error)): ?>
@@ -13,10 +13,9 @@ require __DIR__ . '/../partials/header.php';
 
         <!-- 
             action="/user/store" geht davon aus, 
-            dass deine Route in index.php (bzw. customRoutes) 
-            so konfiguriert ist, dass /user/store -> UserController->store() aufruft.
+            dass deine Route so konfiguriert ist, dass /user/store -> UserController->store() aufruft.
         -->
-        <form method="post" action="/user/store" class="login-form">
+        <form method="post" action="/user/store" class="admin-form">
             
             <div class="form-group">
                 <label for="email">E-Mail:</label>
@@ -35,4 +34,5 @@ require __DIR__ . '/../partials/header.php';
 
 <?php
 require __DIR__ . '/../partials/footer.php';
+?>
 ?>

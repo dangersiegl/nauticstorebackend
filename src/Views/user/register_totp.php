@@ -7,18 +7,44 @@ require __DIR__ . '/../partials/header.php';
     <div class="login-box">
         <h2>TOTP-Registrierung abschließen</h2>
 
-        <p>Bitte scanne den folgenden QR-Code mit deiner Authenticator-App (z.B. Google Authenticator, Authy, etc.):</p>
+        <?php if (!empty($error)): ?>
+            <div class="error-message"><?php echo htmlspecialchars($error); ?></div>
+        <?php endif; ?>
 
-        <img src="<?= $qrCodeUrl ?>" alt="TOTP QR-Code">
+        <p>Bitte scannen Sie den folgenden QR-Code mit Ihrer Authenticator-App (z.B. Google Authenticator, Authy):</p>
 
-        <p>Oder gib den folgenden Code manuell in deine Authenticator-App ein:</p>
+        <?php if (!empty($qrCodeUrl)): ?>
+            <!-- QR und Logo nebeneinander (flex, wrap für kleine Bildschirme) -->
+            <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-top:8px;margin-bottom:12px;">
+                <!-- Logo aus public/assets/logo -->
+                <div style="flex:0 0 auto;">
+                    <img src="/assets/logo/nauticstore24logo-backend.png" alt="Logo" style="width:80px;height:auto;border-radius:6px;border:1px solid rgba(0,0,0,0.05);background:#fff;padding:6px;">
+                </div>
 
-        <p><strong><?= $data['secret'] ?></strong></p>
+                <!-- QR-Code -->
+                <div style="flex:0 0 auto;">
+                    <img src="<?php echo htmlspecialchars($qrCodeUrl); ?>" alt="TOTP QR-Code" style="width:200px;height:200px;border:1px solid #ddd;padding:4px;background:#fff;">
+                </div>
+            </div>
+        <?php else: ?>
+            <p><em>QR-Code konnte nicht erzeugt werden.</em></p>
+        <?php endif; ?>
 
-        <p>Nachdem du den QR-Code gescannt oder den Code eingegeben hast, kannst du dich anmelden.</p>
+        <p>Oder geben Sie den folgenden Secret-Key manuell in Ihre Authenticator-App ein:</p>
+        <p><strong><?php echo htmlspecialchars($data['secret'] ?? ''); ?></strong></p>
 
-        <p><strong>Hinweis:</strong> Der QR-Code und der Secret-Key sind nur für die erstmalige Einrichtung gültig.</p>
-        <a href="/login">Zum Login</a>
+        <form method="post" action="/register" class="login-form" style="margin-top:15px;">
+            <div class="form-group">
+                <label for="totp">TOTP-Code (6-stellig):</label>
+                <input type="text" name="totp" id="totp" maxlength="6" pattern="\d{6}" required>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Weiter</button>
+        </form>
+
+        <p style="margin-top:12px;">
+            Falls Sie zurück zum Registrierungsformular möchten, <a href="/register">klicken Sie hier</a>.
+        </p>
     </div>
 </div>
 

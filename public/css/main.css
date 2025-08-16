@@ -74,7 +74,7 @@ html, body {
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
-    transition: right 0.3s ease; /* Übergang für rechte Position */
+    transition: right 0.3s ease, width 0.22s ease, left 0.22s ease; /* Übergang für rechte Position und Breite */
     position: fixed; /* Sidebar fixiert auf der linken Seite */
     top: 60px; /* Platz für Header */
     left: 0; /* Standardposition links */
@@ -89,6 +89,50 @@ html, body {
 .sidebar-header h2 {
     margin: 0;
     font-size: 1.2rem;
+}
+
+/* Sidebar-Header Toggle im gleichen Look wie die Menü-Links */
+.sidebar-header .sidebar-toggle-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 12px 20px;
+    background: transparent;
+    color: #ecf0f1;
+    text-align: left;
+    border: none;
+    cursor: pointer;
+    border-radius: 0;
+    font-size: 1rem;
+}
+
+/* Hover / Fokus identisch zu Menü-Links */
+.sidebar-header .sidebar-toggle-btn:hover,
+.sidebar-header .sidebar-toggle-btn:focus {
+    background-color: #34495e;
+    color: #fff;
+    outline: none;
+}
+
+/* Icon-Größe / Ausrichtung wie bei den nav-icons */
+.sidebar-header .sidebar-toggle-btn .nav-icon {
+    width: 28px;
+    text-align: center;
+    font-size: 1.2rem;
+    display: inline-block;
+    color: #ecf0f1;
+}
+
+/* Wenn Sidebar collapsed ist: Button auch zentrieren (wie Links) */
+.admin-sidebar.collapsed .sidebar-header .sidebar-toggle-btn {
+    justify-content: center;
+    padding: 12px 8px;
+}
+
+/* Wenn collapsed: Label wird ohnehin ausgeblendet (.nav-label global), aber sicherstellen */
+.admin-sidebar.collapsed .sidebar-header .nav-label {
+    display: none;
 }
 
 .sidebar-nav {
@@ -106,7 +150,9 @@ html, body {
 }
 
 .sidebar-nav a {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 10px;
     padding: 12px 20px;
     color: #ecf0f1;
     text-decoration: none;
@@ -163,8 +209,36 @@ html, body {
     min-height: calc(100vh - 60px); /* Höhe anpassen */
     box-shadow: inset 0 0 10px rgba(0,0,0,0);
     padding-bottom: 60px; /* Platz für ggf. fixen Footer */
-    margin-left: 240px; /* Platz für Sidebar */
     transition: margin-left 0.3s ease;
+}
+
+/* Make content area expand/contract depending on sidebar state */
+.admin-main {
+    transition: margin-left 220ms ease, width 220ms ease;
+}
+
+/* Normaler Zustand (Sidebar ausgeklappt) */
+.admin-sidebar:not(.collapsed) + .admin-main,
+.admin-sidebar.open + .admin-main {
+    margin-left: 240px; /* Platz für volle Sidebar */
+}
+
+/* Collapsed Zustand: Inhalt weiter nach links ziehen */
+.admin-sidebar.collapsed + .admin-main {
+    margin-left: 60px;  /* Platz für schmale Sidebar (nur Icons) */
+}
+
+/* Optional: wenn Sidebar auf mobilen Geräten overlayed ist, stelle margin-left zurück */
+@media (max-width: 768px) {
+    .admin-sidebar + .admin-main,
+    .admin-sidebar.collapsed + .admin-main {
+        margin-left: 0;
+    }
+}
+
+/* Kleinere Korrektur für content-box, damit es mit verkleinerter Sidebar gut aussieht */
+.admin-sidebar.collapsed + .admin-main .content-box {
+    margin-left: 8px; /* weniger negativer Versatz, wenn Platz knapper ist */
 }
 
 /* Einfaches Layout für Formulare */
@@ -357,6 +431,51 @@ html, body {
     text-decoration: underline;
 }
 
+/* Abstand für Aktions-Region oberhalb Tabellen */
+.admin-actions {
+    margin-bottom: 12px;
+}
+
+/* Einheitliches, kontrastreiches Styling für Aktions-Buttons in Tabellen/Listen */
+.admin-table a,
+.admin-table .btn-details,
+.admin-table .btn-edit,
+.admin-table .btn-delete,
+.table a,
+.table .btn {
+    display: inline-block;
+    vertical-align: middle;
+    color: #ffffff !important;    /* Sicherstellen, dass der Text sichtbar ist */
+    text-decoration: none;
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    line-height: 1;
+}
+
+/* Farbhintergründe beibehalten, nur Textfarbe erzwingen */
+.admin-table .btn-details { background-color: var(--primary-color); }
+.admin-table .btn-details:hover { background-color: var(--primary-hover); }
+
+.admin-table .btn-edit { background-color: #f1c40f; color: #ffffff; }
+.admin-table .btn-edit:hover { background-color: #d4ac0d; }
+
+.admin-table .btn-delete { background-color: #e74c3c; color: #ffffff; }
+.admin-table .btn-delete:hover { background-color: #c0392b; }
+
+/* Zusätzliche Sicherheits-Regel: Buttons innerhalb Tabellenzellen sollen nicht positioniert überlappen */
+.admin-table td > .btn,
+.admin-table td > a.btn,
+.admin-table td > a {
+    position: relative;
+    margin: 0 4px 4px 0;
+}
+
+/* Falls Buttons in einer Zeile überlappen: Zellenhöhe etwas erhöhen */
+.admin-table td {
+    vertical-align: middle;
+}
+
 /* Buttons für Aktionen */
 .btn-details {
     background-color: #3498db;
@@ -418,32 +537,18 @@ html, body {
     background-color: #2980b9;
 }
 
-.btn-secondary {
-    background-color: #95a5a6;
-    color: #fff;
-    padding: 6px 12px;
-    font-size: 0.9rem;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: background-color 0.3s;
+/* Sicherstellen, dass primäre Buttons immer weißen Text haben */
+.btn-primary,
+.btn-primary * {
+    color: #ffffff !important; /* zwingend weißen Text erzwingen */
 }
 
-.btn-secondary:hover {
-    background-color: #7f8c8d;
-}
-
-/* Optional: Styling für admin-section */
-.admin-section {
-    padding: 20px;
-    background-color: #fff;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-/* Styling für den Rich-Text-Editor Button */
-#toggle-html {
-    margin-top: 10px;
+/* Falls .btn-primary Links oder Inline-Elemente enthält, korrekt zentrieren */
+.btn-primary {
+    display: inline-block;
+    vertical-align: middle;
+    line-height: 1.2;
+    text-decoration: none;
 }
 
 /* ============================================================
@@ -585,7 +690,7 @@ html, body {
 }
 
 .admin-form button.btn {
-    background-color: #3498db;
+    background-color: var(--primary-color);
     color: #fff;
     padding: 10px 20px;
     font-size: 1rem;
@@ -596,5 +701,412 @@ html, body {
 }
 
 .admin-form button.btn:hover {
-    background-color: #2980b9;
+    background-color: var(--primary-hover);
+}
+
+/* Anpassung: Login/Registrierungsseiten zentrieren (keine feste left-margin durch Sidebar) */
+.admin-main.login-page {
+    margin-left: 0;                  /* Kein Platz für die Sidebar reservieren */
+    margin-right: 0;
+    max-width: 480px;               /* Begrenzte Breite wie vorher */
+    margin: 80px auto 20px;         /* Abstand oben (Header), zentriert horizontal */
+    padding: 20px;                  /* Innenabstand für das Box-Layout */
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    background: #fff;
+    border-radius: 6px;
+}
+
+/* Optional: kleinere Bildschirme weiterhin korrekt behandeln */
+@media (max-width: 768px) {
+    .admin-main.login-page {
+        max-width: 100%;
+        margin: 70px 10px;
+        padding: 16px;
+    }
+}
+
+/* === Projektweite Primärfarbe (Buttons + Links) === */
+:root {
+    --primary-color: #003055;
+    --primary-hover: #00243f;
+}
+
+/* Buttons: primär */
+.btn-primary {
+    background-color: var(--primary-color);
+    color: #ffffff;
+    border-color: var(--primary-color);
+}
+.btn-primary:hover,
+.btn-primary:focus {
+    background-color: var(--primary-hover);
+    border-color: var(--primary-hover);
+}
+
+/* Optional: Buttons, die als Links ausgeführt sind (z.B. .btn-details) */
+.btn-details,
+.btn-edit,
+.btn-delete {
+    color: #fff;
+}
+
+/* Links innerhalb des Hauptinhalts / Login-Box / Register-Link / Tabellen */
+.admin-main a,
+.login-box a,
+.register-link a,
+.admin-table a {
+    color: var(--primary-color);
+    text-decoration: none;
+}
+.admin-main a:hover,
+.login-box a:hover,
+.register-link a:hover,
+.admin-table a:hover {
+    color: var(--primary-hover);
+    text-decoration: underline;
+}
+
+/* Input-Fokus passend zur Primärfarbe */
+.login-form input:focus,
+.admin-form input:focus,
+.admin-form textarea:focus,
+.login-form input:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 6px rgba(0,48,85,0.12);
+    outline: none;
+}
+
+/* Content-Box für Admin-Seiten (nicht Login/Register)
+   steht näher an der Sidebar und nutzt die verfügbare Breite */
+.content-box {
+    background: #fff;
+    padding: 18px;
+    border-radius: 6px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    /* Weniger Abstand zur Sidebar: linke Marge reduziert (oder leicht negativ) */
+    margin: 16px 16px 24px -20px; /* top right bottom left */
+    max-width: none; /* volle Breite innerhalb admin-main */
+}
+
+/* Falls Überlappung sichtbar wird, auf größeren Bildschirmen leicht zurückziehen */
+@media (min-width: 1200px) {
+    .content-box {
+        margin-left: -8px; /* weniger aggressiv auf großen Screens */
+    }
+}
+
+/* Kleinere Anpassung: Formulare auf Admin-Seiten */
+.admin-form .form-group {
+    margin-bottom: 12px;
+}
+
+.admin-main h2 {
+    margin-top: 0;
+}
+
+/* Spezifisches Styling: Toggle-Button für HTML-Ansicht soll grau sein (kein primary-Button) */
+#toggle-html {
+    background-color: #95a5a6; /* graues Medium */
+    color: #ffffff;
+    border: none;
+    padding: 6px 12px;
+    font-size: 0.9rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+#toggle-html:hover,
+#toggle-html:focus {
+    background-color: #7f8c8d; /* dunkleres Grau beim Hover/Focus */
+    outline: none;
+}
+
+/* --- Änderung: btn-secondary soll neutral-grau sein, nicht primary --- */
+.btn-secondary,
+.btn-secondary * {
+    background-color: #95a5a6 !important;
+    color: #ffffff !important;
+    border: none !important;
+}
+
+/* Optional: Hover für btn-secondary */
+.btn-secondary:hover,
+.btn-secondary:focus {
+    background-color: #7f8c8d !important;
+}
+
+/* Erfolgsmeldung: grün mit Rahmen */
+.success-message {
+    border: 1px solid #2ecc71;
+    background-color: #e9f9ef;
+    color: #1e7a35;
+    padding: 10px 12px;
+    border-radius: 6px;
+    margin-bottom: 12px;
+}
+
+/* Einheitliches Styling für Admin-Formulareingabefelder */
+.admin-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: #ffffff;
+    font-size: 1rem;
+    color: #111827;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.admin-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(0,48,85,0.06);
+}
+
+/* Sicherstellen, dass primäre Buttons die Primärfarbe haben */
+.btn-primary,
+.btn-primary * {
+    background-color: var(--primary-color) !important;
+    color: #ffffff !important;
+    border: none !important;
+}
+
+/* Sidebar: collapsed (nur Icons) */
+.admin-sidebar {
+    transition: width 0.22s ease, left 0.22s ease, right 0.22s ease;
+}
+
+/* Visually hidden für Screenreader */
+.visually-hidden {
+    position: absolute !important;
+    height: 1px; width: 1px;
+    overflow: hidden;
+    clip: rect(1px, 1px, 1px, 1px);
+    white-space: nowrap;
+}
+
+/* Collapsed Sidebar: enge Breite, Labels ausblenden */
+.admin-sidebar.collapsed {
+    width: 60px;
+}
+
+/* Icon + Label Layout */
+.sidebar-nav a {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* Icon Box styling - zwingend sichtbar */
+.nav-icon {
+    width: 28px;
+    text-align: center;
+    font-size: 1.2rem;
+    display: inline-block;
+    color: #ecf0f1;
+}
+
+/* Label sichtbar im normalen Zustand */
+.nav-label {
+    display: inline-block;
+    white-space: nowrap;
+}
+
+/* Wenn collapsed: Labels ausblenden und Icons zentrieren */
+.admin-sidebar.collapsed .nav-label {
+    display: none;
+}
+.admin-sidebar.collapsed .sidebar-nav a {
+    justify-content: center;
+    padding: 12px 8px;
+}
+
+/* Sub-nav als Hover-Popup im collapsed Zustand */
+.admin-sidebar.collapsed .has-submenu {
+    position: relative;
+}
+.admin-sidebar.collapsed .has-submenu > .sub-nav {
+    display: none;
+    position: absolute;
+    left: 60px; /* rechts neben enge Sidebar */
+    top: 0;
+    background-color: #2c3e50;
+    border: 1px solid #34495e;
+    min-width: 220px;
+    z-index: 2000;
+    box-shadow: 0 6px 12px rgba(0,0,0,0.12);
+    padding: 6px 0;
+}
+
+/* Collapsed Popup: initial verstecken mit Transition */
+.admin-sidebar.collapsed .has-submenu > .sub-nav {
+    display: block; /* weiterhin Block für Messung, Visibility/Opacity steuern */
+    visibility: hidden;
+    opacity: 0;
+    transform: translateY(-6px);
+    pointer-events: none;
+    position: absolute;
+    left: 60px;
+    top: 0;
+    background-color: #2c3e50;
+    border: 1px solid #34495e;
+    min-width: 220px;
+    z-index: 2200;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.16);
+    padding: 6px 0;
+    transition: opacity 180ms ease, transform 180ms ease, visibility 180ms;
+}
+
+/* Bei CSS-Hover oder JS .hover-open zeigen */
+.admin-sidebar.collapsed .has-submenu:hover > .sub-nav,
+.admin-sidebar.collapsed .has-submenu.hover-open > .sub-nav {
+    visibility: visible;
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+/* Sicherstellen, dass die nav-labels im Popup sichtbar sind */
+.admin-sidebar.collapsed .has-submenu > .sub-nav a .nav-label,
+.admin-sidebar.collapsed .has-submenu > .sub-nav li .nav-label {
+    display: inline-block !important;
+    white-space: normal;
+    color: #ecf0f1;
+    font-size: 0.95rem;
+    padding-left: 6px;
+}
+
+/* Popup-Links layout */
+.admin-sidebar.collapsed .has-submenu > .sub-nav li a {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    color: #ecf0f1;
+}
+
+/* Hover-Effekt für Popup-Einträge */
+.admin-sidebar.collapsed .has-submenu > .sub-nav li a:hover {
+    background: #34495e;
+    color: #fff;
+}
+
+/* Falls Subnav sehr hoch, erlauben wir Scroll innerhalb des Popup */
+.admin-sidebar.collapsed .has-submenu > .sub-nav {
+    max-height: 60vh;
+    overflow: auto;
+}
+
+/* Labels in collapsed Sidebar sind ausgeblendet (nur Icons sichtbar) */
+.admin-sidebar.collapsed .nav-label {
+    display: none;
+}
+
+/* Icons zentrieren im collapsed Zustand */
+.admin-sidebar.collapsed .sidebar-nav a {
+    justify-content: center;
+    padding: 12px 8px;
+}
+
+/* Collapsed Sidebar: Popup-Subnav als absolute, animiertes Panel */
+.admin-sidebar.collapsed .has-submenu > .sub-nav {
+    /* sichtbarkeitssteuerung via opacity/visibility, top per JS */
+    display: block;
+    position: absolute;
+    left: 60px;              /* rechts neben die schmale Sidebar */
+    top: 0;                  /* wird per JS angepasst */
+    visibility: hidden;
+    opacity: 0;
+    transform: translateY(-6px);
+    pointer-events: none;
+    background-color: #2c3e50;
+    border: 1px solid #34495e;
+    min-width: 220px;
+    max-height: 60vh;
+    overflow: auto;
+    z-index: 2200;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.18);
+    padding: 6px 0;
+    transition: opacity 160ms ease, transform 160ms ease, visibility 160ms;
+}
+
+/* Bei Hover / JS-Klasse hover-open öffnen */
+.admin-sidebar.collapsed .has-submenu:hover > .sub-nav,
+.admin-sidebar.collapsed .has-submenu.hover-open > .sub-nav {
+    visibility: visible;
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+/* Popup-Einträge: Label sicher sichtbar */
+.admin-sidebar.collapsed .has-submenu > .sub-nav a .nav-label,
+.admin-sidebar.collapsed .has-submenu > .sub-nav li .nav-label {
+    display: inline-block !important;
+    color: #ecf0f1;
+    white-space: normal;
+    padding-left: 6px;
+}
+
+/* Pfeile (Submenu-Toggles) im collapsed Zustand ausblenden */
+.admin-sidebar.collapsed .submenu-toggle {
+    display: none !important;
+}
+
+/* Stelle sicher, dass die Sidebar über anderen Content liegt */
+.admin-sidebar {
+    z-index: 1200; /* über dem Header/Content */
+    /* behalte scroll für normalen Zustand */
+    overflow-y: auto;
+}
+
+/* Wenn eingeklappt: erlauben, dass Popup außerhalb der Sidebar sichtbar wird */
+.admin-sidebar.collapsed {
+    width: 60px;
+    overflow: visible; /* wichtig: sonst wird das absolute Popup abgeschnitten */
+}
+
+/* Subnav / Popup soll ganz oben im Stack liegen */
+.admin-sidebar .sub-nav {
+    z-index: 2500;
+}
+
+/* Collapsed Popup: Sichtbarkeit via opacity/visibility steuern (keine display:none) */
+.admin-sidebar.collapsed .has-submenu > .sub-nav {
+    display: block; /* für Zugriff/Positionierung notwendig */
+    position: absolute;
+    left: 60px;
+    top: 0; /* wird per JS angepasst */
+    visibility: hidden;
+    opacity: 0;
+    transform: translateY(-6px);
+    pointer-events: none;
+    background-color: #2c3e50;
+    border: 1px solid #34495e;
+    min-width: 220px;
+    max-height: 60vh;
+    overflow: auto;
+    z-index: 3000; /* sehr hoch, damit nichts überlappt */
+    box-shadow: 0 8px 20px rgba(0,0,0,0.18);
+    padding: 6px 0;
+    transition: opacity 160ms ease, transform 160ms ease, visibility 160ms;
+}
+
+/* öffnen bei hover oder .hover-open (JS) */
+.admin-sidebar.collapsed .has-submenu:hover > .sub-nav,
+.admin-sidebar.collapsed .has-submenu.hover-open > .sub-nav {
+    visibility: visible;
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+/* Labels im Popup sicher sichtbar */
+.admin-sidebar.collapsed .has-submenu > .sub-nav a .nav-label {
+    display: inline-block !important;
+    color: #ecf0f1;
+    white-space: normal;
+    padding-left: 6px;
 }
