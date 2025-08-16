@@ -556,39 +556,115 @@ class UserController
         // 1) URL auswerten
         $parts = explode('/', $_GET['route'] ?? '');
         $userId = $parts[2] ?? 0;
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            // (A) POST => Änderungen speichern
-            $email = $_POST['email'] ?? '';
-            $isAdmin = !empty($_POST['is_admin']) ? 1 : 0;
 
-            // Kurze Validierung ...
+        // Wenn keine ID über URL, verwende eingeloggten User (eigener Account)
+        if (empty($userId)) {
+            if (session_status() === PHP_SESSION_NONE) session_start();
+            $userId = $_SESSION['user_id'] ?? 0;
+        }
+
+        // Falls weiterhin keine ID bestimmbar, Fehler
+        if (empty($userId)) {
+            $error = "Benutzer nicht gefunden.";
+            require __DIR__ . '/../Views/user/edit.php';
+            return;
+        }
+
+        // Aktuellen Benutzerdaten laden
+        $user = UserModel::getById($userId);
+
+        if (!$user) {
+            $error = "User nicht gefunden!";
+            require __DIR__ . '/../Views/user/edit.php';
+            return;
+        }
+
+        // POST-Verarbeitung
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+
+            // 1) Passwort-Änderung (wenn password-formular gesendet wurde)
+            if (isset($_POST['new_password'])) {
+                if (session_status() === PHP_SESSION_NONE) session_start();
+                $currentUserId = $_SESSION['user_id'] ?? 0;
+
+                // Optional: wenn verlangt, prüfe aktuelles Passwort (wenn Feld vorhanden)
+                $currentPassword = $_POST['current_password'] ?? '';
+                $newPassword = $_POST['new_password'] ?? '';
+                $newPasswordConfirm = $_POST['new_password_confirm'] ?? '';
+
+                if (empty($newPassword) || $newPassword !== $newPasswordConfirm) {
+                    $error = "Neue Passwörter stimmen nicht überein oder sind leer.";
+                    require __DIR__ . '/../Views/user/edit.php';
+                    return;
+                }
+
+                // Optional: prüfen, ob current password korrekt (nur für own account)
+                if ($currentUserId === $userId && !empty($currentPassword)) {
+                    if (!UserModel::verifyPassword($userId, $currentPassword)) {
+                        $error = "Aktuelles Passwort falsch.";
+                        require __DIR__ . '/../Views/user/edit.php';
+                        return;
+                    }
+                }
+
+                // Speichere neues Passwort (UserModel::updatePassword sollte existieren)
+                $changed = UserModel::updatePassword($userId, $newPassword);
+                if ($changed) {
+                    $success = "Passwort wurde erfolgreich geändert.";
+                } else {
+                    $error = "Fehler beim Ändern des Passworts.";
+                }
+
+                // Lade View erneut
+                require __DIR__ . '/../Views/user/edit.php';
+                return;
+            }
+
+            // 2) Allgemeine Profildaten ändern (E-Mail, ggf. is_admin)
+            $email = $_POST['email'] ?? '';
+            // Nur erlauben, is_admin zu setzen, wenn aktueller User Admin und er nicht sein eigenes is_admin ändert
+            $isAdminFlag = 0;
+            if (session_status() === PHP_SESSION_NONE) session_start();
+            $currentUserIsAdmin = !empty($_SESSION['is_admin']);
+            $currentUserId = $_SESSION['user_id'] ?? 0;
+
+            if ($currentUserIsAdmin && ($currentUserId != $userId)) {
+                $isAdminFlag = !empty($_POST['is_admin']) ? 1 : 0;
+            } else {
+                // Behalte bestehenden is_admin-Wert
+                $isAdminFlag = !empty($user['is_admin']) ? 1 : 0;
+            }
+
+            // Kurze Validierung
             if (empty($email)) {
                 $error = "E-Mail darf nicht leer sein!";
-                // Alte Daten neu laden, um das Formular anzuzeigen
-                $user = UserModel::getById($userId);
                 require __DIR__ . '/../Views/user/edit.php';
                 return;
             }
 
             // Update in DB
-            UserModel::update($userId, $email, $isAdmin);
+            UserModel::update($userId, $email, $isAdminFlag);
 
-            // Zurück zur Liste
-            header('Location: /user/list');
-            exit;
-
-        } else {
-            // (B) GET => Formular anzeigen mit bestehenden Daten
-            $user = UserModel::getById($userId);
-
-            if (!$user) {
-                // Kein User mit dieser ID
-                $error = "User nicht gefunden!";
+            // Bei eigenem Profil ggf. Session-Email aktualisieren (falls benötigt)
+            if ($currentUserId === $userId) {
+                $_SESSION['user_email'] = $email;
             }
 
-            // Zeige View (edit.php) an
-            require __DIR__ . '/../Views/user/edit.php';
+            // Zurück zur Liste oder Profilseite
+            if ($currentUserIsAdmin && ($currentUserId != $userId)) {
+                header('Location: /user/list');
+                exit;
+            } else {
+                $success = "Daten gespeichert.";
+                // neu laden, damit aktuelle Werte angezeigt werden
+                $user = UserModel::getById($userId);
+                require __DIR__ . '/../Views/user/edit.php';
+                return;
+            }
         }
+
+        // GET => Formular anzeigen mit bestehenden Daten
+        require __DIR__ . '/../Views/user/edit.php';
     }
 
     public function delete()

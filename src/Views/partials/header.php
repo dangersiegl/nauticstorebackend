@@ -180,8 +180,9 @@ $sidebarCollapsed = !empty($_SESSION['sidebar_collapsed']);
     <div class="admin-wrapper">
 
         <nav class="admin-sidebar<?php echo $sidebarCollapsed ? ' collapsed' : ''; ?>">
- 
-             <ul class="sidebar-nav">
+            <!-- ...existing sidebar header ... -->
+
+            <ul class="sidebar-nav">
                 <!-- Toggle als regulärer Menüeintrag (Icon + Label), ganz oben -->
                 <li class="sidebar-toggle-item">
                     <a href="#" id="sidebar-toggle" title="Menü ein-/ausklappen" aria-label="Menü ein-/ausklappen">
@@ -231,41 +232,76 @@ $sidebarCollapsed = !empty($_SESSION['sidebar_collapsed']);
  
                      <?php if ($isAdmin): ?>
                          <li class="has-submenu <?php echo ($activeController === 'user' ? 'open' : ''); ?>">
-                             <a href="/user" class="<?php echo ($activeController === 'user' ? 'active' : ''); ?>" title="Benutzerverwaltung" aria-label="Benutzerverwaltung">
-                                 <i class="fa-solid fa-users nav-icon" aria-hidden="true"></i>
-                                 <span class="nav-label">Benutzerverwaltung</span>
-                                 <span class="submenu-toggle">▼</span>
-                             </a>
-                             <ul class="sub-nav">
-                                 <li class="<?php echo ($activeAction === 'list' ? 'active' : ''); ?>">
-                                     <a href="/user/list" title="Benutzer anzeigen" aria-label="Benutzer anzeigen"><i class="fa-solid fa-list nav-icon" aria-hidden="true"></i><span class="nav-label">Anzeigen</span></a>
-                                 </li>
-                                 <li class="<?php echo ($activeAction === 'mfa' ? 'active' : ''); ?>">
-                                     <a href="/user/mfa/enable" title="Multifaktor-Authentifizierung" aria-label="Multifaktor-Authentifizierung"><i class="fa-solid fa-lock nav-icon" aria-hidden="true"></i><span class="nav-label">MFA</span></a>
-                                 </li>
-                                 <!-- Weitere User-Routen hier -->
-                             </ul>
-                         </li>
-                     <?php endif; ?>
- 
-                     <li>
-                         <a href="/logout" title="Abmelden" aria-label="Abmelden">
-                             <i class="fa-solid fa-right-from-bracket nav-icon" aria-hidden="true"></i>
-                             <span class="nav-label">Logout</span>
-                         </a>
-                     </li>
-                 <?php else: ?>
-                     <li class="<?php echo ($currentRoute === 'login' ? 'active' : ''); ?>">
-                         <a href="/login" title="Login" aria-label="Login">
-                             <i class="fa-solid fa-key nav-icon" aria-hidden="true"></i>
-                             <span class="nav-label">Login</span>
-                         </a>
-                     </li>
-                 <?php endif; ?>
-             </ul>
-         </nav>
- 
-         <main class="admin-main">
+                        <a href="/user/list" title="Kunden" aria-label="Kunden">
+                            <i class="fa-solid fa-users nav-icon" aria-hidden="true"></i>
+                            <span class="nav-label">Kunden</span>
+                            <span class="submenu-toggle">▼</span>
+                        </a>
+                        <ul class="sub-nav">
+                            <li class="<?php echo ($activeController === 'user' && $activeAction === 'list' ? 'active' : ''); ?>">
+                                <a href="/user/list" title="Alle Kunden anzeigen" aria-label="Alle Kunden anzeigen">
+                                    <i class="fa-solid fa-list nav-icon" aria-hidden="true"></i>
+                                    <span class="nav-label">Anzeigen</span>
+                                </a>
+                            </li>
+                            <li class="<?php echo ($activeController === 'user' && $activeAction === 'neu' ? 'active' : ''); ?>">
+                                <a href="/user/neu" title="Neuen Kunden anlegen" aria-label="Neuen Kunden anlegen">
+                                    <i class="fa-solid fa-plus nav-icon" aria-hidden="true"></i>
+                                    <span class="nav-label">Neu</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    <?php endif; ?>
+
+                    <!-- Benutzerverwaltung = eigener Account (für alle Benutzer verfügbar) -->
+                    <li class="has-submenu <?php echo ($activeController === 'user' && ($activeAction === 'edit' || $activeAction === 'changePassword' || $activeAction === 'enableMFA') ? 'open' : ''); ?>">
+                        <a href="/user/edit" title="Benutzerverwaltung" aria-label="Benutzerverwaltung">
+                            <i class="fa-solid fa-user-gear nav-icon" aria-hidden="true"></i>
+                            <span class="nav-label">Benutzerverwaltung</span>
+                            <span class="submenu-toggle">▼</span>
+                        </a>
+                        <ul class="sub-nav">
+                            <li>
+                                <a href="/user/edit" title="Meine Daten" aria-label="Meine Daten">
+                                    <i class="fa-solid fa-id-card nav-icon" aria-hidden="true"></i>
+                                    <span class="nav-label">Meine Daten</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="/user/edit?section=password" title="Passwort ändern" aria-label="Passwort ändern">
+                                    <i class="fa-solid fa-key nav-icon" aria-hidden="true"></i>
+                                    <span class="nav-label">Passwort</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="/user/mfa/enable" title="Multifaktor-Authentifizierung" aria-label="Multifaktor-Authentifizierung">
+                                    <i class="fa-solid fa-lock nav-icon" aria-hidden="true"></i>
+                                    <span class="nav-label">MFA</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+
+                    <li>
+                        <a href="/logout" title="Abmelden" aria-label="Abmelden">
+                            <i class="fa-solid fa-right-from-bracket nav-icon" aria-hidden="true"></i>
+                            <span class="nav-label">Logout</span>
+                        </a>
+                    </li>
+                <?php else: ?>
+                    <li class="<?php echo ($currentRoute === 'login' ? 'active' : ''); ?>">
+                        <a href="/login" title="Login" aria-label="Login">
+                            <i class="fa-solid fa-key nav-icon" aria-hidden="true"></i>
+                            <span class="nav-label">Login</span>
+                        </a>
+                    </li>
+                <?php endif; ?>
+            </ul>
+        </nav>
+
+        <main class="admin-main">
+            <!-- Dein Hauptinhalt hier -->
              <!-- Dein Hauptinhalt hier -->
         <main class="admin-main">
             <!-- Dein Hauptinhalt hier -->
