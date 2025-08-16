@@ -62,6 +62,11 @@ require __DIR__ . '/../partials/header.php';
                 <input type="password" name="password" id="password" class="admin-input" required>
             </div>
 
+            <div class="form-group">
+                <label for="totp">Bitte geben Sie den aktuellen TOTP-Code ein:</label>
+                <input type="text" name="totp" id="totp" class="admin-input" maxlength="6" pattern="\d{6}" required>
+            </div>
+
             <button type="submit" class="btn btn-primary">MFA deaktivieren</button>
         </form>
 

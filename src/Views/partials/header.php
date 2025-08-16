@@ -269,7 +269,7 @@ $sidebarCollapsed = !empty($_SESSION['sidebar_collapsed']);
                                 </a>
                             </li>
                             <li>
-                                <a href="/user/edit?section=password" title="Passwort ändern" aria-label="Passwort ändern">
+                                <a href="/user/edit/password" title="Passwort ändern" aria-label="Passwort ändern">
                                     <i class="fa-solid fa-key nav-icon" aria-hidden="true"></i>
                                     <span class="nav-label">Passwort</span>
                                 </a>

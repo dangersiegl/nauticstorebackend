@@ -1,13 +1,13 @@
 <!-- src/Views/user/edit.php -->
 
 <?php
-$pageTitle = 'Benutzer bearbeiten';
+$pageTitle = 'Meine Daten bearbeiten';
 require __DIR__ . '/../partials/header.php';
 ?>
 
 <div class="admin-main">
     <div class="content-box">
-        <h2>Benutzer bearbeiten</h2>
+        <h2>Meine Daten bearbeiten</h2>
 
         <?php if (!empty($error)): ?>
             <div class="error-message"><?php echo htmlspecialchars($error); ?></div>
@@ -24,7 +24,8 @@ require __DIR__ . '/../partials/header.php';
             $currentUserId = $_SESSION['user_id'] ?? 0;
             $currentIsAdmin = !empty($_SESSION['is_admin']);
             $isOwnProfile = ($currentUserId == $user['id']);
-            $section = $_GET['section'] ?? '';
+            // $section wird vom Controller gesetzt; fallback auf query param falls vorhanden
+            $section = $section ?? ($_GET['section'] ?? '');
             ?>
 
             <?php if ($section === 'password'): ?>
@@ -47,12 +48,20 @@ require __DIR__ . '/../partials/header.php';
                 </form>
 
             <?php else: ?>
-                <!-- Profil-Formular -->
+                <!-- Profil-Formular: jetzt inkl. Vorname/Nachname -->
                 <form method="post" action="" class="admin-form">
                     <div class="form-group">
+                        <label for="first_name">Vorname:</label>
+                        <input type="text" name="first_name" id="first_name" value="<?php echo htmlspecialchars($user['first_name'] ?? ''); ?>">
+                    </div>
+                    <div class="form-group">
+                        <label for="last_name">Nachname:</label>
+                        <input type="text" name="last_name" id="last_name" value="<?php echo htmlspecialchars($user['last_name'] ?? ''); ?>">
+                    </div>
+
+                    <div class="form-group">
                         <label for="email">E-Mail:</label>
-                        <input type="email" name="email" id="email"
-                               value="<?php echo htmlspecialchars($user['email']); ?>" required>
+                        <input type="email" name="email" id="email" value="<?php echo htmlspecialchars($user['email'] ?? ''); ?>" required>
                     </div>
 
                     <?php if ($currentIsAdmin && !$isOwnProfile): ?>

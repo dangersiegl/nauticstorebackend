@@ -7,6 +7,8 @@
  */
 
 use App\Models\UserModel;
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
 
 
 
@@ -553,75 +555,119 @@ class UserController
     
     public function edit()
     {
-        // 1) URL auswerten
-        $parts = explode('/', $_GET['route'] ?? '');
-        $userId = $parts[2] ?? 0;
+        // 1) URL auswerten / Section erkennen
+        $parts = explode('/', trim($_GET['route'] ?? '', '/'));
+        // Mögliche Formen:
+        // /user/edit -> eigenes Profil
+        // /user/edit/password -> eigenes Passwort
+        // /user/edit/{id} -> Admin edit user
+        // /user/edit/{id}/password -> Admin edit user's password
+        $section = '';
+        $userId = 0;
 
-        // Wenn keine ID über URL, verwende eingeloggten User (eigener Account)
+        if (isset($parts[2])) {
+            if (is_numeric($parts[2])) {
+                $userId = (int)$parts[2];
+                // evtl. /user/edit/{id}/password
+                if (isset($parts[3]) && $parts[3] === 'password') {
+                    $section = 'password';
+                }
+            } else {
+                // z. B. /user/edit/password
+                if ($parts[2] === 'password') {
+                    $section = 'password';
+                } else {
+                    // fallback: nichts besonderes, treat as no id
+                }
+            }
+        }
+
+        // Wenn noch keine ID bestimmt, verwende eingeloggten User (eigener Account)
         if (empty($userId)) {
             if (session_status() === PHP_SESSION_NONE) session_start();
             $userId = $_SESSION['user_id'] ?? 0;
         }
 
         // Falls weiterhin keine ID bestimmbar, Fehler
-        if (empty($userId)) {
-            $error = "Benutzer nicht gefunden.";
-            require __DIR__ . '/../Views/user/edit.php';
-            return;
-        }
+        // Falls weiterhin keine ID bestimmbar, Fehler
+         if (empty($userId)) {
+             $error = "Benutzer nicht gefunden.";
+             require __DIR__ . '/../Views/user/edit.php';
+             return;
+         }
 
-        // Aktuellen Benutzerdaten laden
-        $user = UserModel::getById($userId);
+         // Aktuellen Benutzerdaten laden
+         $user = UserModel::getById($userId);
 
-        if (!$user) {
-            $error = "User nicht gefunden!";
-            require __DIR__ . '/../Views/user/edit.php';
-            return;
-        }
+         if (!$user) {
+             $error = "User nicht gefunden!";
+             require __DIR__ . '/../Views/user/edit.php';
+             return;
+         }
 
-        // POST-Verarbeitung
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+         // Setze $section für die View (falls noch nicht vorhanden)
+         // View kann $section nutzen, alternativ bleibt '' (Profil-Form)
+         // Falls $_GET['section'] noch gesetzt ist, respektiere es nur wenn $section leer
+         if (empty($section)) {
+             $section = $_GET['section'] ?? '';
+         }
 
-            // 1) Passwort-Änderung (wenn password-formular gesendet wurde)
-            if (isset($_POST['new_password'])) {
-                if (session_status() === PHP_SESSION_NONE) session_start();
-                $currentUserId = $_SESSION['user_id'] ?? 0;
+         // POST-Verarbeitung
+         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-                // Optional: wenn verlangt, prüfe aktuelles Passwort (wenn Feld vorhanden)
-                $currentPassword = $_POST['current_password'] ?? '';
-                $newPassword = $_POST['new_password'] ?? '';
-                $newPasswordConfirm = $_POST['new_password_confirm'] ?? '';
+             // 1) Passwort-Änderung (wenn password-formular gesendet wurde)
+             if (isset($_POST['new_password'])) {
+                 if (session_status() === PHP_SESSION_NONE) session_start();
+                 $currentUserId = $_SESSION['user_id'] ?? 0;
 
-                if (empty($newPassword) || $newPassword !== $newPasswordConfirm) {
-                    $error = "Neue Passwörter stimmen nicht überein oder sind leer.";
-                    require __DIR__ . '/../Views/user/edit.php';
-                    return;
-                }
+                 // Optional: wenn verlangt, prüfe aktuelles Passwort (wenn Feld vorhanden)
+                 $currentPassword = $_POST['current_password'] ?? '';
+                 $newPassword = $_POST['new_password'] ?? '';
+                 $newPasswordConfirm = $_POST['new_password_confirm'] ?? '';
 
-                // Optional: prüfen, ob current password korrekt (nur für own account)
-                if ($currentUserId === $userId && !empty($currentPassword)) {
-                    if (!UserModel::verifyPassword($userId, $currentPassword)) {
-                        $error = "Aktuelles Passwort falsch.";
-                        require __DIR__ . '/../Views/user/edit.php';
-                        return;
-                    }
-                }
+                 if (empty($newPassword) || $newPassword !== $newPasswordConfirm) {
+                     $error = "Neue Passwörter stimmen nicht überein oder sind leer.";
+                     require __DIR__ . '/../Views/user/edit.php';
+                     return;
+                 }
 
-                // Speichere neues Passwort (UserModel::updatePassword sollte existieren)
-                $changed = UserModel::updatePassword($userId, $newPassword);
-                if ($changed) {
-                    $success = "Passwort wurde erfolgreich geändert.";
-                } else {
-                    $error = "Fehler beim Ändern des Passworts.";
-                }
+                 // Optional: prüfen, ob current password korrekt (nur für own account)
+                 if ($currentUserId === $userId && !empty($currentPassword)) {
+                     if (!UserModel::verifyPassword($userId, $currentPassword)) {
+                         $error = "Aktuelles Passwort falsch.";
+                         require __DIR__ . '/../Views/user/edit.php';
+                         return;
+                     }
+                 }
 
-                // Lade View erneut
-                require __DIR__ . '/../Views/user/edit.php';
-                return;
-            }
+                 // Speichere neues Passwort (UserModel::updatePassword sollte existieren)
+                 $changed = $this->updatePasswordInternal($userId, $newPassword);
 
-            // 2) Allgemeine Profildaten ändern (E-Mail, ggf. is_admin)
-            $email = $_POST['email'] ?? '';
+                 if ($changed) {
+                     $success = "Passwort wurde erfolgreich geändert.";
+                 } else {
+                     // Falls updatePasswordInternal() eine genauere Fehlermeldung gesetzt hat, zeige sie an
+                     if (session_status() === PHP_SESSION_NONE) session_start();
+                     $sessErr = !empty($_SESSION['error_message']) ? $_SESSION['error_message'] : null;
+                     if ($sessErr) {
+                         $error = "Fehler beim Ändern des Passworts: " . $sessErr;
+                         unset($_SESSION['error_message']);
+                     } else {
+                         $error = "Fehler beim Ändern des Passworts.";
+                     }
+                 }
+
+                 // Lade View erneut
+                 require __DIR__ . '/../Views/user/edit.php';
+                 return;
+             }
+
+             // 2) Allgemeine Profildaten ändern (E-Mail, ggf. is_admin)
+             $email = $_POST['email'] ?? '';
+            // Neu: Vorname / Nachname
+            $firstName = trim($_POST['first_name'] ?? '');
+            $lastName  = trim($_POST['last_name'] ?? '');
+
             // Nur erlauben, is_admin zu setzen, wenn aktueller User Admin und er nicht sein eigenes is_admin ändert
             $isAdminFlag = 0;
             if (session_status() === PHP_SESSION_NONE) session_start();
@@ -642,11 +688,245 @@ class UserController
                 return;
             }
 
-            // Update in DB
-            UserModel::update($userId, $email, $isAdminFlag);
+            // Update in DB (zuerst Model-Versuch)
+            try {
+                if (class_exists('UserModel') && method_exists('UserModel','update')) {
+                    // vorhandenes Model verwenden (ändert ggf. nur email/is_admin)
+                    UserModel::update($userId, $email, $isAdminFlag);
+                }
+            } catch (\Throwable $e) {
+                // ignore, versuchen wir ggf. Fallbacks weiter unten
+            }
+            
+            // Falls Vor- oder Nachname gesetzt wurden: versuche sie zu speichern (Model-Funktionen oder direkter SQL-Fallback).
+            // --- E-Mail-Änderung: Wenn sich die E-Mail ändert, prüfe zuerst Verfügbarkeit
+            $emailChanged = ($email !== ($user['email'] ?? ''));
+            if ($emailChanged) {
+                // Prüfe, ob E-Mail bereits existiert (außer beim eigenen Account)
+                $existing = null;
+                try { $existing = UserModel::getByEmail($email); } catch (\Throwable $e) { $existing = null; }
+                if (!empty($existing) && (!isset($existing['id']) || $existing['id'] != $userId)) {
+                    $error = "Diese E-Mail-Adresse wird bereits verwendet.";
+                    require __DIR__ . '/../Views/user/edit.php';
+                    return;
+                }
+
+                // Erzeuge Token und speichere in email_resets (Model-Versuch, sonst SQL-Fallback)
+                $token = bin2hex(random_bytes(16));
+                $savedPending = false;
+
+                // Versuche Model-Methode first (wenn vorhanden)
+                if (class_exists('UserModel') && method_exists('UserModel','requestEmailChange')) {
+                    try {
+                        $savedPending = (bool) UserModel::requestEmailChange($userId, $email, $token);
+                    } catch (\Throwable $e) {
+                        $savedPending = false;
+                    }
+                }
+
+                if (!$savedPending) {
+                    // SQL-Fallback: insert into email_resets
+                    $pdo = null;
+                    // Versuche verschiedene Wege auf die PDO-Connection zu kommen
+                    if (class_exists('\App\Models\Database')) {
+                        $cls = '\App\Models\Database';
+                        if (method_exists($cls, 'getConnection')) {
+                            try { $pdo = $cls::getConnection(); } catch (\Throwable $e) { $pdo = null; }
+                        }
+                        if ($pdo === null && method_exists($cls,'getInstance')) {
+                            try { $inst = $cls::getInstance(); if (is_object($inst) && method_exists($inst,'getConnection')) $pdo = $inst->getConnection(); } catch (\Throwable $e) { $pdo = null; }
+                        }
+                    }
+                    if ($pdo === null && class_exists('Database')) {
+                        $cls = 'Database';
+                        if (method_exists($cls, 'getConnection')) {
+                            try { $pdo = $cls::getConnection(); } catch (\Throwable $e) { $pdo = null; }
+                        }
+                        if ($pdo === null && method_exists($cls,'getInstance')) {
+                            try { $inst = $cls::getInstance(); if (is_object($inst) && method_exists($inst,'getConnection')) $pdo = $inst->getConnection(); } catch (\Throwable $e) { $pdo = null; }
+                        }
+                    }
+                    if ($pdo === null && isset($GLOBALS['pdo']) && $GLOBALS['pdo'] instanceof \PDO) $pdo = $GLOBALS['pdo'];
+                    if ($pdo === null && !empty($GLOBALS['db']) && $GLOBALS['db'] instanceof \PDO) $pdo = $GLOBALS['db'];
+                    if ($pdo === null && !empty($GLOBALS['database']) && $GLOBALS['database'] instanceof \PDO) $pdo = $GLOBALS['database'];
+
+                    if ($pdo instanceof \PDO) {
+                        try {
+                            // optional alte Einträge für diesen user löschen
+                            $pdo->beginTransaction();
+                            $del = $pdo->prepare("DELETE FROM email_resets WHERE user_id = :uid");
+                            $del->execute([':uid' => $userId]);
+
+                            $sql = "INSERT INTO email_resets (user_id, new_email, token, created_at) VALUES (:uid, :email, :token, :created_at)";
+                            $stmt = $pdo->prepare($sql);
+                            $stmt->execute([
+                                ':uid' => $userId,
+                                ':email' => $email,
+                                ':token' => $token,
+                                ':created_at' => date('Y-m-d H:i:s')
+                            ]);
+                            $pdo->commit();
+                            $savedPending = true;
+                        } catch (\Throwable $e) {
+                            if ($pdo->inTransaction()) $pdo->rollBack();
+                            $savedPending = false;
+                        }
+                    }
+                }
+
+                if ($savedPending) {
+                    // Sende Bestätigungsmail an die neue Adresse (PHPMailer/SMTP konfigurierbar)
+                    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+                    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+                    $confirmUrl = $scheme . '://' . $host . '/user/confirm-email?uid=' . urlencode($userId) . '&token=' . urlencode($token);
+                    $subject = 'E‑Mail Änderung bestätigen';
+                    $message = "Hallo,\n\nbitte bestätigen Sie die Änderung Ihrer E‑Mailadresse, indem Sie auf den folgenden Link klicken:\n\n" . $confirmUrl . "\n\nWenn Sie diese Änderung nicht angefordert haben, ignorieren Sie bitte diese Nachricht.\n\nFreundliche Grüße\n";
+
+                    // From-Defaults vorbereiten (wird auch im Fallback verwendet)
+                    $fromAddr = (defined('SMTP_FROM') && SMTP_FROM !== '') ? SMTP_FROM : ('noreply@' . $host);
+                    $fromName = (defined('SMTP_FROM_NAME') && SMTP_FROM_NAME !== '') ? SMTP_FROM_NAME : 'NoReply';
+
+                    // Verwende PHPMailer, falls vorhanden; konfiguriere SMTP aus config
+                    if (class_exists('\PHPMailer\PHPMailer\PHPMailer')) {
+                        try {
+                            $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
+
+                            if (defined('SMTP_HOST') && SMTP_HOST !== '') {
+                                $mail->isSMTP();
+                                $mail->Host = SMTP_HOST;
+                                $mail->Port = (defined('SMTP_PORT') && is_numeric(SMTP_PORT)) ? (int)SMTP_PORT : 25;
+                                $mail->SMTPAuth = defined('SMTP_AUTH') ? (bool)SMTP_AUTH : true;
+                                if (!empty(SMTP_USER)) $mail->Username = SMTP_USER;
+                                if (!empty(SMTP_PASS)) $mail->Password = SMTP_PASS;
+
+                                // Verschlüsselung mapping
+                                $sec = defined('SMTP_SECURE') ? strtolower(SMTP_SECURE) : '';
+                                if ($sec === 'ssl') {
+                                    $mail->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS;
+                                } elseif ($sec === 'tls') {
+                                    $mail->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+                                } else {
+                                    $mail->SMTPSecure = '';
+                                }
+
+                                // Debug bzw. Debugoutput ins error_log (konfigurierbar via SMTP_DEBUG)
+                                $mail->SMTPDebug = defined('SMTP_DEBUG') ? (int)SMTP_DEBUG : 0;
+                                $mail->Debugoutput = function($str, $level) {
+                                    error_log("PHPMailer debug[$level]: $str");
+                                };
+
+                                // Optional: allow self-signed (Testserver)
+                                if (defined('SMTP_ALLOW_SELF_SIGNED') && SMTP_ALLOW_SELF_SIGNED) {
+                                    $mail->SMTPOptions = [
+                                        'ssl' => [
+                                            'verify_peer' => false,
+                                            'verify_peer_name' => false,
+                                            'allow_self_signed' => true
+                                        ]
+                                    ];
+                                }
+                            } else {
+                                // kein SMTP konfiguriert -> mail() Transport
+                                $mail->isMail();
+                            }
+
+                            // From/To/Content
+                            $mail->setFrom($fromAddr, $fromName);
+                            $mail->addAddress($email);
+                            $mail->Subject = $subject;
+                            $mail->Body    = $message;
+                            $mail->AltBody = $message;
+
+                            $mail->send();
+                            // Erfolg: nichts weiter nötig
+                        } catch (\Throwable $e) {
+                            // Loggen und Fallback auf mail()
+                            error_log("PHPMailer send error: " . $e->getMessage());
+                            $headers = 'From: ' . $fromAddr . "\r\n" .
+                                       'Reply-To: ' . $fromAddr . "\r\n" .
+                                       'X-Mailer: PHP/' . phpversion();
+                            $res = @mail($email, $subject, $message, $headers);
+                            if (!$res) {
+                                error_log("mail() fallback failed for $email");
+                            }
+                        }
+                    } else {
+                        // Kein PHPMailer installiert -> einfacher mail() Call
+                        $headers = 'From: ' . $fromAddr . "\r\n" .
+                                   'Reply-To: ' . $fromAddr . "\r\n" .
+                                   'X-Mailer: PHP/' . phpversion();
+                        $res = @mail($email, $subject, $message, $headers);
+                        if (!$res) error_log("mail() failed for $email");
+                    }
+
+                    $success = "Eine Bestätigungsmail wurde an " . htmlspecialchars($email) . " gesendet. Die neue E‑Mail wird nach Bestätigung übernommen.";
+                } else {
+                    $error = "Fehler beim Anlegen der Änderungsbestätigung. Bitte versuchen Sie es später.";
+                    require __DIR__ . '/../Views/user/edit.php';
+                    return;
+                }
+            } else {
+                // E-Mail nicht geändert -> normale Speicherung per Model (wenn vorhanden)
+                try {
+                    if (class_exists('UserModel') && method_exists('UserModel','update')) {
+                        UserModel::update($userId, $email, $isAdminFlag);
+                    }
+                } catch (\Throwable $e) {
+                    // ignore
+                }
+            }
+
+            // Falls Vor- oder Nachname gesetzt wurden: versuche sie zu speichern (Model-Funktionen oder direkter SQL-Fallback).
+             if ($firstName !== '' || $lastName !== '') {
+                 $namesSaved = false;
+                 if (class_exists('UserModel')) {
+                     // gängige Hilfsmethoden prüfen
+                     if (method_exists('UserModel','setName')) {
+                         try { $namesSaved = (bool) UserModel::setName($userId, $firstName, $lastName); } catch (\Throwable $e) { $namesSaved = false; }
+                     } elseif (method_exists('UserModel','updateNames')) {
+                         try { $namesSaved = (bool) UserModel::updateNames($userId, $firstName, $lastName); } catch (\Throwable $e) { $namesSaved = false; }
+                     }
+                 }
+                 if (!$namesSaved) {
+                     // Direkter SQL-Fallback (Versuch, PDO wie in updatePasswordInternal zu holen)
+                     $pdo = null;
+                     if (class_exists('\App\Models\Database')) {
+                         $cls = '\App\Models\Database';
+                         if (method_exists($cls, 'getConnection')) {
+                             try { $pdo = $cls::getConnection(); } catch (\Throwable $e) { $pdo = null; }
+                         }
+                         if ($pdo === null && method_exists($cls,'getInstance')) {
+                             try { $inst = $cls::getInstance(); if (is_object($inst) && method_exists($inst,'getConnection')) $pdo = $inst->getConnection(); } catch (\Throwable $e) { $pdo = null; }
+                         }
+                     }
+                     if ($pdo === null && class_exists('Database')) {
+                         $cls = 'Database';
+                         if (method_exists($cls, 'getConnection')) {
+                             try { $pdo = $cls::getConnection(); } catch (\Throwable $e) { $pdo = null; }
+                         }
+                         if ($pdo === null && method_exists($cls,'getInstance')) {
+                             try { $inst = $cls::getInstance(); if (is_object($inst) && method_exists($inst,'getConnection')) $pdo = $inst->getConnection(); } catch (\Throwable $e) { $pdo = null; }
+                         }
+                     }
+                     if ($pdo === null && isset($GLOBALS['pdo']) && $GLOBALS['pdo'] instanceof \PDO) $pdo = $GLOBALS['pdo'];
+                     if ($pdo === null && !empty($GLOBALS['db']) && $GLOBALS['db'] instanceof \PDO) $pdo = $GLOBALS['db'];
+                     if ($pdo === null && !empty($GLOBALS['database']) && $GLOBALS['database'] instanceof \PDO) $pdo = $GLOBALS['database'];
+ 
+                     if ($pdo instanceof \PDO) {
+                         try {
+                             $sql = "UPDATE users_users SET first_name = :fn, last_name = :ln WHERE id = :id";
+                             $stmt = $pdo->prepare($sql);
+                             $stmt->execute([':fn' => $firstName, ':ln' => $lastName, ':id' => $userId]);
+                         } catch (\Throwable $e) {
+                             // optional: error_log($e->getMessage());
+                         }
+                     }
+                 }
+             }
 
             // Bei eigenem Profil ggf. Session-Email aktualisieren (falls benötigt)
-            if ($currentUserId === $userId) {
+            // Session nur aktualisieren, wenn die E-Mail tatsächlich übernommen wurde (also NICHT bei pending change).
+            if ($currentUserId === $userId && empty($emailChanged)) {
                 $_SESSION['user_email'] = $email;
             }
 
@@ -661,7 +941,7 @@ class UserController
                 require __DIR__ . '/../Views/user/edit.php';
                 return;
             }
-        }
+         }
 
         // GET => Formular anzeigen mit bestehenden Daten
         require __DIR__ . '/../Views/user/edit.php';
@@ -699,13 +979,17 @@ class UserController
         }
 
         $userId = $_SESSION['user_id'];
-        $password = $_POST['password'] ?? '';
 
-        if (empty($password)) {
-            // Fehlermeldung zurück zur View
-            $error = "Bitte geben Sie Ihr Passwort zur Bestätigung ein.";
-            $user = UserModel::getById($userId);
-            $mfa_enabled = !empty($user['totp_secret']);
+        // Aktuellen Benutzer laden (für TOTP-Secret und Darstellung)
+        $user = UserModel::getById($userId);
+        $mfa_enabled = !empty($user['totp_secret']);
+
+        $password = $_POST['password'] ?? '';
+        $totp     = trim($_POST['totp'] ?? '');
+
+        // Validierung beider Felder
+        if (empty($password) || empty($totp)) {
+            $error = "Bitte Passwort und aktuellen TOTP-Code eingeben.";
             require_once __DIR__ . '/../Views/mfa/enable.php';
             return;
         }
@@ -713,13 +997,18 @@ class UserController
         // Passwort prüfen
         if (!UserModel::verifyPassword($userId, $password)) {
             $error = "Passwort falsch. MFA wurde nicht deaktiviert.";
-            $user = UserModel::getById($userId);
-            $mfa_enabled = !empty($user['totp_secret']);
             require_once __DIR__ . '/../Views/mfa/enable.php';
             return;
         }
 
-        // Passwort korrekt -> MFA deaktivieren
+        // TOTP prüfen (nutze gespeichertes Secret)
+        if (empty($user['totp_secret']) || !$this->verifyTOTP($user['totp_secret'], $totp)) {
+            $error = "Ungültiger TOTP-Code. MFA wurde nicht deaktiviert.";
+            require_once __DIR__ . '/../Views/mfa/enable.php';
+            return;
+        }
+
+        // Beides korrekt -> MFA deaktivieren
         $disabled = UserModel::disableMFA($userId);
         if ($disabled) {
             $_SESSION['success_message'] = 'Zwei-Faktor-Authentifizierung wurde deaktiviert.';
@@ -739,19 +1028,112 @@ class UserController
 		return $this->base32_encode($random);
 	}
 
-	// Erstellt eine Provisioning-URI für Authenticator-Apps (otpauth://totp/...)
-	protected function generateTOTPProvisioningUri(string $label, string $secret, string $issuer = 'Nauticstore24'): string
+	// Neues: internes Update-Passwort Helper (versucht vorhandene Database-Konzepte zu nutzen)
+	protected function updatePasswordInternal(int $userId, string $newPassword): bool
 	{
-		$account = rawurlencode($issuer . ':' . $label);
-		$qs = http_build_query([
-			'secret' => $secret,
-			'issuer' => $issuer,
-			'algorithm' => 'SHA1',
-			'digits' => 6,
-			'period' => 30
-		]);
-		return "otpauth://totp/{$account}?{$qs}";
-	}
+		// Hash erstellen
+		$hash = password_hash($newPassword, PASSWORD_DEFAULT);
+		if ($hash === false) {
+			if (session_status() === PHP_SESSION_NONE) session_start();
+			$_SESSION['error_message'] = 'Fehler beim Erstellen des Passwort-Hashes.';
+			return false;
+		}
+
+		// 1) Versuche Model-Methoden, falls vorhanden
+		if (class_exists('UserModel') || class_exists('\App\Models\UserModel')) {
+			$modelClassCandidates = [];
+			if (class_exists('\App\Models\UserModel')) $modelClassCandidates[] = '\App\Models\UserModel';
+			if (class_exists('UserModel')) $modelClassCandidates[] = 'UserModel';
+
+			foreach ($modelClassCandidates as $mc) {
+				// updatePassword($id, $hash)
+				if (method_exists($mc, 'updatePassword')) {
+					try {
+						$res = $mc::updatePassword($userId, $hash);
+						return (bool)$res;
+					} catch (\Throwable $e) {
+						// weiter zu nächsten Versuchen
+					}
+				}
+				// setPassword($id, $hash)
+				if (method_exists($mc, 'setPassword')) {
+					try {
+						$res = $mc::setPassword($userId, $hash);
+						return (bool)$res;
+					} catch (\Throwable $e) {
+						// weiter
+					}
+				}
+				// update($id, $email, $isAdmin) eventuell vorhanden, aber nicht passend für Passwort
+			}
+		}
+
+		// 2) Versuche PDO über verschiedene Database-Klassen / globale Variablen zu erhalten
+		$pdo = null;
+
+		// namespaced Database
+		if (class_exists('\App\Models\Database')) {
+			$cls = '\App\Models\Database';
+			// häufige Patterns: getConnection(), getInstance()->getConnection()
+			if (method_exists($cls, 'getConnection')) {
+				try { $pdo = $cls::getConnection(); } catch (\Throwable $e) { $pdo = null; }
+			}
+			if ($pdo === null && method_exists($cls, 'getInstance')) {
+				try {
+					$inst = $cls::getInstance();
+					if (is_object($inst) && method_exists($inst, 'getConnection')) {
+						$pdo = $inst->getConnection();
+					}
+				} catch (\Throwable $e) { $pdo = null; }
+			}
+		}
+
+		// legacy Database (global namespace)
+		if ($pdo === null && class_exists('Database')) {
+			$cls = 'Database';
+			if (method_exists($cls, 'getConnection')) {
+				try { $pdo = $cls::getConnection(); } catch (\Throwable $e) { $pdo = null; }
+			}
+			if ($pdo === null && method_exists($cls, 'getInstance')) {
+				try {
+					$inst = $cls::getInstance();
+					if (is_object($inst) && method_exists($inst, 'getConnection')) {
+						$pdo = $inst->getConnection();
+					}
+				} catch (\Throwable $e) { $pdo = null; }
+			}
+		}
+
+		// globales $pdo prüfen
+		if ($pdo === null && isset($GLOBALS['pdo']) && $GLOBALS['pdo'] instanceof \PDO) {
+			$pdo = $GLOBALS['pdo'];
+		}
+
+		// weiteres Fallback: $GLOBALS['db'] oder $GLOBALS['database']
+		if ($pdo === null && !empty($GLOBALS['db']) && $GLOBALS['db'] instanceof \PDO) $pdo = $GLOBALS['db'];
+		if ($pdo === null && !empty($GLOBALS['database']) && $GLOBALS['database'] instanceof \PDO) $pdo = $GLOBALS['database'];
+
+		if (!($pdo instanceof \PDO)) {
+			if (session_status() === PHP_SESSION_NONE) session_start();
+			$_SESSION['error_message'] = 'Fehler beim Ändern des Passworts: keine DB-Verbindung gefunden.';
+			return false;
+		}
+
+		// 3) Direkter SQL-Update
+		try {
+			$sql = "UPDATE users_users SET password = :pw WHERE id = :id";
+			$stmt = $pdo->prepare($sql);
+			$stmt->execute([':pw' => $hash, ':id' => $userId]);
+			// rowCount kann 0 sein, wenn der Hash identisch war; behandeln als Erfolg wenn kein Exception
+			return true;
+		} catch (\Throwable $e) {
+			if (session_status() === PHP_SESSION_NONE) session_start();
+			// Speichere die genaue Exception-Meldung kurz in der Session für Debug-Ausgabe
+			$_SESSION['error_message'] = 'DB-Fehler: ' . $e->getMessage();
+             // optional: error_log($e->getMessage());
+             return false;
+         }
+     }
 
 	// Verifiziert einen TOTP-Code gegen das Secret (Fenster +/- 1 Intervall)
 	protected function verifyTOTP(string $secret, string $code, int $window = 1): bool
@@ -818,5 +1200,134 @@ class UserController
 		}
 		return $out;
 	}
+
+	// Generiert die URI für den QR-Code (otpauth://)
+	// $label: z.B. user email oder "user@example.com"
+	// $secret: Base32-Secret (ohne padding ist in Ordnung)
+	// $issuer: optional, Name des Dienstes (wird in der URI als issuer gesetzt)
+	protected function generateTOTPProvisioningUri(string $label, string $secret, string $issuer = 'Nauticstore24'): string
+	{
+		// Stelle sicher, dass Secret Base32 und Großbuchstaben sind
+		$secret = strtoupper(trim($secret, '='));
+		// Label und Issuer URL-encoden
+		$labelEnc  = rawurlencode($label);
+		$issuerEnc = rawurlencode($issuer);
+
+		// Standard-Parameter für TOTP (SHA1, 6 Stellen, 30s)
+		$params = [
+			'secret'    => $secret,
+			'issuer'    => $issuer,
+			'algorithm' => 'SHA1',
+			'digits'    => '6',
+			'period'    => '30'
+		];
+
+		$query = http_build_query($params);
+		// otpauth://totp/Issuer:Label?secret=...&issuer=Issuer...
+		return 'otpauth://totp/' . $issuerEnc . ':' . $labelEnc . '?' . $query;
+	}
+
+    // Neues: Bestätigungs-Endpunkt für E‑Mail-Änderungen
+    public function confirmEmail()
+    {
+        // Beispiel-URL: /user/confirm-email?uid=123&token=abc
+        $uid = $_GET['uid'] ?? null;
+        $token = $_GET['token'] ?? null;
+
+        if (empty($uid) || empty($token)) {
+            if (session_status() === PHP_SESSION_NONE) session_start();
+            $_SESSION['error_message'] = 'Ungültiger Bestätigungslink.';
+            header('Location: /user/edit');
+            exit;
+        }
+
+        $uid = (int)$uid;
+        $confirmed = false;
+
+        // Versuche Model-Methode zuerst (falls vorhanden)
+        if (class_exists('UserModel') && method_exists('UserModel','confirmEmailChange')) {
+            try {
+                $confirmed = (bool) UserModel::confirmEmailChange($uid, $token);
+            } catch (\Throwable $e) {
+                $confirmed = false;
+            }
+        }
+
+        if (!$confirmed) {
+            // SQL-Fallback gegen email_resets Tabelle
+            $pdo = null;
+            if (class_exists('\App\Models\Database')) {
+                $cls = '\App\Models\Database';
+                if (method_exists($cls, 'getConnection')) {
+                    try { $pdo = $cls::getConnection(); } catch (\Throwable $e) { $pdo = null; }
+                }
+                if ($pdo === null && method_exists($cls,'getInstance')) {
+                    try { $inst = $cls::getInstance(); if (is_object($inst) && method_exists($inst,'getConnection')) $pdo = $inst->getConnection(); } catch (\Throwable $e) { $pdo = null; }
+                }
+            }
+            if ($pdo === null && class_exists('Database')) {
+                $cls = 'Database';
+                if (method_exists($cls, 'getConnection')) {
+                    try { $pdo = $cls::getConnection(); } catch (\Throwable $e) { $pdo = null; }
+                }
+                if ($pdo === null && method_exists($cls,'getInstance')) {
+                    try { $inst = $cls::getInstance(); if (is_object($inst) && method_exists($inst,'getConnection')) $pdo = $inst->getConnection(); } catch (\Throwable $e) { $pdo = null; }
+                }
+            }
+            if ($pdo === null && isset($GLOBALS['pdo']) && $GLOBALS['pdo'] instanceof \PDO) $pdo = $GLOBALS['pdo'];
+            if ($pdo === null && !empty($GLOBALS['db']) && $GLOBALS['db'] instanceof \PDO) $pdo = $GLOBALS['db'];
+            if ($pdo === null && !empty($GLOBALS['database']) && $GLOBALS['database'] instanceof \PDO) $pdo = $GLOBALS['database'];
+
+            if ($pdo instanceof \PDO) {
+                try {
+                    $sql = "SELECT id, new_email, created_at FROM email_resets WHERE user_id = :id AND token = :pt LIMIT 1";
+                    $stmt = $pdo->prepare($sql);
+                    $stmt->execute([':id' => $uid, ':pt' => $token]);
+                    $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+                    if (!empty($row['new_email'])) {
+                        // Prüfe Ablauf (z.B. 48 Stunden)
+                        $created = strtotime($row['created_at']);
+                        if ($created !== false && ($created + 48*3600) >= time()) {
+                            // Update users_users.email und lösche Eintrag in email_resets
+                            $pdo->beginTransaction();
+                            $sqlUp = "UPDATE users_users SET email = :newemail WHERE id = :id";
+                            $stmt2 = $pdo->prepare($sqlUp);
+                            $stmt2->execute([':newemail' => $row['new_email'], ':id' => $uid]);
+
+                            $del = $pdo->prepare("DELETE FROM email_resets WHERE id = :rid");
+                            $del->execute([':rid' => $row['id']]);
+
+                            $pdo->commit();
+                            $confirmed = true;
+
+                            // Falls der aktuell eingeloggte User seine eigene E-Mail bestätigt hat -> Session aktualisieren
+                            if (session_status() === PHP_SESSION_NONE) session_start();
+                            if (!empty($_SESSION['user_id']) && $_SESSION['user_id'] == $uid) {
+                                $_SESSION['user_email'] = $row['new_email'];
+                            }
+                        } else {
+                            // Token abgelaufen -> entferne Eintrag
+                            $del = $pdo->prepare("DELETE FROM email_resets WHERE id = :rid");
+                            $del->execute([':rid' => $row['id']]);
+                            $confirmed = false;
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    if ($pdo->inTransaction()) $pdo->rollBack();
+                    $confirmed = false;
+                }
+            }
+        }
+
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        if ($confirmed) {
+            $_SESSION['success_message'] = 'E‑Mail erfolgreich bestätigt und übernommen.';
+        } else {
+            $_SESSION['error_message'] = 'Bestätigung fehlgeschlagen oder Link ungültig.';
+        }
+
+        header('Location: /user/edit');
+        exit;
+    }
 
 }
